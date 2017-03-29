@@ -630,9 +630,11 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              Owned<IEsdlObjectWalker>  walker = dynamic_cast<IEsdlObjectWalker*>(walkerobj.getClear());
              StringBuffer name, value;
              EsdlObjTypeId type_next = walker->next(name, value);
-             while(type_next != EsdlObjEndAll)
+             while(1)
              {
-                 DBGLOG("%s=%s", name.str(), value.str());
+                 DBGLOG("type %d: %s=%s", type_next, name.str(), value.str());
+                 if(type_next == EsdlObjEndAll)
+                     break;
                  type_next = walker->next(name.clear(), value.clear());
              }
 
