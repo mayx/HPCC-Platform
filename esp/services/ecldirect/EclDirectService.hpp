@@ -40,6 +40,7 @@ public:
 
     bool onRunEcl(IEspContext &context, IEspRunEclRequest &req, IEspRunEclResponse &resp);
     bool onRunEclEx(IEspContext &context, IEspRunEclExRequest &req, IEspRunEclExResponse &resp);
+    bool onJavaEchoPersonInfo(IEspContext &context, IEspJavaEchoPersonInfoRequest &req, IEspJavaEchoPersonInfoResponse &resp);
 };
 
 class CEclDirectSoapBindingEx : public CEclDirectSoapBinding

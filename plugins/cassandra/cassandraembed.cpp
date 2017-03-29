@@ -1752,8 +1752,10 @@ public:
     virtual void writeResult(IInterface *esdl, const char *esdlservice, const char *esdltype, IInterface *writer)
     {
     }
-
-
+    virtual IInterface* createObjectWalker(IInterface *esdl, const char *esdlservice, const char *esdltype)
+    {
+        return NULL;
+    }
     virtual void importFunction(size32_t lenChars, const char *text)
     {
         throwUnexpected();

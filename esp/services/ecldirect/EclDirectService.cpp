@@ -156,6 +156,13 @@ inline void deleteEclDirectWorkunit(IWorkUnitFactory *factory, const char *wuid)
     }
 }
 
+bool CEclDirectEx::onJavaEchoPersonInfo(IEspContext &context, IEspJavaEchoPersonInfoRequest &req, IEspJavaEchoPersonInfoResponse &resp)
+{
+    resp.setAddresses(req.getAddresses());
+    DBGLOG("request address length: %d", req.getAddresses().length());
+    return true;
+}
+
 bool CEclDirectEx::onRunEcl(IEspContext &context, IEspRunEclRequest & req, IEspRunEclResponse & resp)
 {
     if (!context.validateFeatureAccess(ECLDIRECT_ACCESS, SecAccess_Full, false))

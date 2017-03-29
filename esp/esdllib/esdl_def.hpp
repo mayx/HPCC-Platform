@@ -93,6 +93,19 @@ interface IEsdlDefObject : extends IInterface
 
 typedef IEsdlDefObject * IEsdlDefObjPtr;
 
+typedef enum EsdlObjTypeId_
+{
+    EsdlObjElement,
+    EsdlObjStart,
+    EsdlObjEnd,
+    EsdlObjEndAll
+} EsdlObjTypeId;
+
+interface IEsdlObjectWalker : extends IInterface
+{
+    virtual EsdlObjTypeId next(StringBuffer& name, StringBuffer& value) = 0;
+};
+
 interface IEsdlDefObjectIterator : extends IInterface
 {
     virtual bool        first(void)=0;

@@ -830,6 +830,7 @@ interface IEmbedFunctionContext : extends IInterface
     virtual IInterface *bindParamWriter(IInterface *esdl, const char *esdlservice, const char *esdltype, const char *name)=0;
     virtual void paramWriterCommit(IInterface *writer)=0;
     virtual void writeResult(IInterface *esdl, const char *esdlservice, const char *esdltype, IInterface *writer)=0;
+    virtual IInterface* createObjectWalker(IInterface *esdl, const char *esdlservice, const char *esdltype) = 0;
 };
 
 interface IEmbedServiceContext : extends IInterface

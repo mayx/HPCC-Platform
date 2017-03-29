@@ -38,6 +38,11 @@
 
 #include "loggingagentbase.hpp"
 
+class JavaXPP : XmlPullParser
+{
+
+};
+
 /*
  * trim xpath at first instance of element
  */
@@ -514,6 +519,8 @@ static inline bool isPublishedQuery(EsdlMethodImplType implType)
     return (implType==EsdlMethodImplRoxie || implType==EsdlMethodImplWsEcl);
 }
 
+StringBuffer tmpreq, tmpresp;
+
 void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                                            IEsdlDefService &srvdef,
                                            IEsdlDefMethod &mthdef,
@@ -610,17 +617,60 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                 javactx->paramWriterCommit(writer);
              }
 
+             TimeSection* ts = new TimeSection("Java1");
              writer.setown(dynamic_cast<IXmlWriterExt *>(javactx->bindParamWriter(m_esdl, javaPackage, mthdef.queryRequestType(), "request")));
              m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, writer, 0, NULL);
              javactx->paramWriterCommit(writer);
+             delete ts;
+             ts = new TimeSection("Java2");
              javactx->callFunction();
+             delete ts;
 
+             Owned<IInterface> walkerobj = javactx->createObjectWalker(m_esdl, srvdef.queryName(), mthdef.queryResponseType());
+             Owned<IEsdlObjectWalker>  walker = dynamic_cast<IEsdlObjectWalker*>(walkerobj.getClear());
+             StringBuffer name, value;
+             EsdlObjTypeId type_next = walker->next(name, value);
+             while(type_next != EsdlObjEndAll)
+             {
+                 DBGLOG("%s=%s", name.str(), value.str());
+                 type_next = walker->next(name.clear(), value.clear());
+             }
+
+             ts = new TimeSection("Java3");
              Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
              javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
              origResp.set(javaRespWriter->str());
+             delete ts;
 
+             ts = new TimeSection("Java3-1");
+             int level = 0;
+             XmlPullParser* xpp1 = new XmlPullParser();
+             xpp1->setInput(origResp.str(), origResp.length());
+             int type = xpp1->next();
+             while(type != XmlPullParser::END_DOCUMENT) {
+                 if(type == XmlPullParser::START_TAG) {
+                     level++;
+                     StartTag stag;
+                     xpp1->readStartTag(stag);
+                     DBGLOG("Start tag: %s", stag.getLocalName());
+                 }
+                 else if(type == XmlPullParser::END_TAG) {
+                     level--;
+                     DBGLOG("End tag");
+                 }
+                 else if(type == XmlPullParser::CONTENT) {
+                     StringBuffer buf(xpp1->readContent());
+                     DBGLOG("Content: %s", buf.str());
+                 }
+                 type = xpp1->next();
+             }
+             DBGLOG("Finished parsing xml, level = %d", level);
+             delete ts;
+
+             ts = new TimeSection("Java4");
              Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
              m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+             delete ts;
 
              out.append(finalRespWriter->str());
         }
@@ -631,14 +681,27 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
             //Preprocess Request
             StringBuffer reqcontent;
             unsigned xflags = (isPublishedQuery(implType)) ? ROXIEREQ_FLAGS : ESDLREQ_FLAGS;
+            TimeSection* ts = new TimeSection("Roxie1");
             m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, reqWriter.get(), xflags, NULL);
+            delete ts;
 
             if(isPublishedQuery(implType))
                 tgtctx.setown(createTargetContext(context, tgtcfg.get(), srvdef, mthdef, req));
 
             reqcontent.set(reqWriter->str());
+            ts = new TimeSection("Roxie2");
+            //TODO: Don't forget to change this back
+            if(tmpreq.length() == 0 || tmpreq.length() != reqcontent.length()){
             handleFinalRequest(context, tgtcfg, tgtctx, srvdef, mthdef, ns, reqcontent, origResp, isPublishedQuery(implType), implType==EsdlMethodImplProxy);
+            tmpreq.set(reqcontent);
+            tmpresp.set(origResp);
+            }
+            else {
+            origResp.set(tmpresp);
+            }
+            delete ts;
 
+            ts = new TimeSection("Roxie3");
             if (isPublishedQuery(implType))
             {
                 Owned<IXmlWriterExt> respWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
@@ -650,6 +713,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                 getSoapBody(out, origResp);
             else
                 m_pEsdlTransformer->process(context, EsdlResponseMode, srvdef.queryName(), mthdef.queryName(), out, origResp.str(), ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+            delete ts;
         }
     }
 
@@ -1590,7 +1654,9 @@ int EsdlBindingImpl::HandleSoapRequest(CHttpRequest* request,
 
             StringBuffer reqName;
             //Owned<IPropertyTree> soap = createPTreeFromXMLString(in, ipt_none,(PTreeReaderOptions) (ipt_caseInsensitive | ptr_ignoreWhiteSpace | ptr_noRoot | ptr_ignoreNameSpaces));
+            TimeSection* ts = new TimeSection("CreatePTreeFromXMLString1");
             Owned<IPropertyTree> soap = createPTreeFromXMLString(in, ipt_none,(PTreeReaderOptions) (ipt_caseInsensitive | ptr_ignoreWhiteSpace | ptr_ignoreNameSpaces));
+            delete ts;
 
             VStringBuffer xpath("Body/%s", reqname.str());
             IPropertyTree *pt = soap->queryPropTree(xpath.str());

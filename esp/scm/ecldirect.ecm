@@ -72,12 +72,50 @@ ESPresponse [nil_remove] RunEclExResponse
     string graphsXGMML;
 };
 
+ESPenum AddressType : string
+{
+    HOME("Home"),
+    WORK("Work"),
+    HOTEL("Hotel")
+};
+
+ESPStruct NameInfo
+{
+    string First("Joe");
+    string Last("Doe");
+    ESParray<string, Alias> Aliases;
+};
+
+ESPStruct AddressInfo
+{
+    ESPenum AddressType type("Home");
+    string Line1;
+    string Line2;
+    string City;
+    string State;
+    int Zip(33487);
+};
+
+ESPrequest JavaEchoPersonInfoRequest
+{
+     ESPstruct NameInfo Name;
+     ESParray<ESPstruct AddressInfo, Address> Addresses;
+};
+
+ESPresponse JavaEchoPersonInfoResponse
+{
+     int count(0);
+     ESPstruct NameInfo Name;
+     ESParray<ESPstruct AddressInfo, Address> Addresses;
+};
 
 ESPservice [auth_feature("DEFERRED")]EclDirect
 {
     ESPmethod RunEcl(RunEclRequest, RunEclResponse);
     ESPmethod RunEclEx(RunEclExRequest, RunEclExResponse);
+    ESPmethod JavaEchoPersonInfo(JavaEchoPersonInfoRequest, JavaEchoPersonInfoResponse);
 };
+
 
 
 

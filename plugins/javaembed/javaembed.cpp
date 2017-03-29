@@ -1509,6 +1509,259 @@ public:
     StringAttr esdlService;
 };
 
+//TODO: make sure there're no memory leaks.
+//TODO: review Owned definition
+class JavaObjectWalkerState : implements IInterface, public CInterface
+{
+public:
+    typedef enum WalkerStateType_
+    {
+        WalkerStateStarting,
+        WalkerStateInArray,
+        WalkerStateInStruct,
+        WalkerStateFinishing
+    }WalkerStateType;
+
+    IMPLEMENT_IINTERFACE;
+
+    JavaObjectWalkerState(WalkerStateType type) : stateType(type)
+    {
+        //children = NULL;
+        arrayObj = NULL;
+        arraySize = 0;
+        arrayIndex = 0;
+        reqStruct = NULL;
+        hasMore = false;
+    }
+    virtual ~JavaObjectWalkerState()
+    {
+        //TODO: cleanup
+    }
+public:
+    WalkerStateType stateType;
+
+    jclass currentClass;
+    jobject currentObject;
+
+
+    //Used for array
+    jobjectArray arrayObj;
+    jint arraySize;
+    jint arrayIndex;
+
+    //Used for complex type
+    IEsdlDefStruct* reqStruct;
+    Owned<IEsdlDefObjectIterator> children;
+    bool hasMore;
+
+    StringBuffer name, value;
+};
+
+class JavaObjectWalker : implements IEsdlObjectWalker, public CInterface
+{
+public:
+    IMPLEMENT_IINTERFACE;
+
+    JavaObjectWalker(JNIEnv *_JNIenv, jobject _obj, const char *_reqType, IEsdlDefinition &_esdl, const char *_esdlService)
+    : JNIenv(_JNIenv), obj(_obj), esdl(_esdl), esdlService(_esdlService), reqType(_reqType)
+    {
+        Class = (jclass) JNIenv->NewGlobalRef(JNIenv->GetObjectClass(obj));
+        langObjectClass = FindClass("java/lang/Object");
+        objToString = JNIenv->GetMethodID(langObjectClass, "toString", "()Ljava/lang/String;");
+        state.setown(new JavaObjectWalkerState(JavaObjectWalkerState::WalkerStateStarting));
+    }
+
+    ~JavaObjectWalker()
+    {
+        if (Class)
+            JNIenv->DeleteGlobalRef(Class);
+        HashIterator it(javaClasses);
+        ForEach(it)
+        {
+            IMapping &entry = it.query();
+            jclass *pClass = javaClasses.mapToValue(&entry);
+            if (pClass)
+                JNIenv->DeleteGlobalRef(*pClass);
+        }
+    }
+
+    EsdlObjTypeId next(StringBuffer& name, StringBuffer& value)
+    {
+        if(state->stateType == JavaObjectWalkerState::WalkerStateStarting) {
+            state->reqStruct = esdl.queryStruct(reqType);
+            if(!state->reqStruct)
+                return EsdlObjEndAll;
+            state->stateType = JavaObjectWalkerState::WalkerStateInStruct;
+            state->currentClass = Class;
+            state->currentObject = obj;
+
+            state->children.setown(state->reqStruct->getChildren());
+            state->hasMore = state->children->first();
+            state->name.set(reqType);
+
+            name.set(state->name);
+            return EsdlObjStart;
+        }
+        else if(state->stateType == JavaObjectWalkerState::WalkerStateInStruct)
+        {
+            if(!state->hasMore)
+            {
+                name.set(state->name);
+                if(stateStack.length() == 0)
+                {
+                    return EsdlObjEndAll;
+                }
+                else
+                {
+                    state.set(&stateStack.popGet());
+                    return EsdlObjEnd;
+                }
+            }
+            else
+            {
+                IEsdlDefObject &child = state->children->query();
+                if (child.getEsdlType()==EsdlTypeElement)
+                {
+                    if (child.hasProp("type"))
+                    {
+                        readSimpleType(state->currentClass, state->currentObject, child, name, value);
+                        state->hasMore = state->children->next();
+                        return EsdlObjElement;
+                    }
+                    else if (child.hasProp("complex_type"))
+                    {
+                        readComplexType(state->currentClass, state->currentObject, child, name);
+                        return EsdlObjStart;
+                    }
+                }
+                else if (child.getEsdlType()==EsdlTypeEnumRef)
+                {
+                    readEnumType(state->currentClass, state->currentObject, child, name, value);
+                    state->hasMore = state->children->next();
+                    return EsdlObjElement;
+                }
+                else if (child.getEsdlType()==EsdlTypeArray)
+                {
+                    state->hasMore = state->children->next();
+                    //readArray(state->currentClass, state->currentObject, child);
+                    name.set("Array");
+                    value.set("TODO");
+                    return EsdlObjElement;
+                }
+            }
+        }
+
+        return EsdlObjEndAll;
+    }
+
+private:
+    jclass FindClass(const char *name)
+    {
+        jclass *pClass = javaClasses.getValue(name);
+        if (pClass)
+            return *pClass;
+        jclass localClass = JNIenv->FindClass(name);
+        if (!localClass)
+            return 0;
+        jclass Class = (jclass) JNIenv->NewGlobalRef(localClass);
+        javaClasses.setValue(name, Class);
+        JNIenv->DeleteLocalRef(localClass);
+        return Class;
+    }
+
+    void readSimpleType(jobject fieldObj, StringBuffer& name, StringBuffer& value)
+    {
+        jstring fieldStr = (jstring) JNIenv->CallObjectMethod(fieldObj, objToString);
+        if (!fieldStr)
+            return;
+        const char *text = JNIenv->GetStringUTFChars(fieldStr, NULL);
+        if (text)
+            value.append(text);
+        JNIenv->DeleteLocalRef(fieldStr);
+    }
+    void readSimpleType(jclass parentClass, jobject parentObject, const char *javaSig, StringBuffer& name, StringBuffer& value)
+    {
+        if (name.length() == 0)
+            return;
+        if (!javaSig || !*javaSig)
+            return;
+        jfieldID fieldId = JNIenv->GetFieldID(parentClass, name.str(), javaSig);
+        if (!fieldId)
+            return;
+        jobject fieldObj = (jobject) JNIenv->GetObjectField(parentObject, fieldId);
+        if (!fieldObj)
+            return;
+        readSimpleType(fieldObj, name, value);
+        JNIenv->DeleteLocalRef(fieldObj);
+    }
+    void readSimpleType(jclass parentClass, jobject parentObject, IEsdlDefObject &defObject, StringBuffer& name, StringBuffer& value)
+    {
+        name.set(defObject.queryName());
+        const char *javaSig = esdl2JavaSig(esdl, defObject.queryProp("type"));
+        readSimpleType(parentClass, parentObject, javaSig, name, value);
+    }
+
+    void readEnumType(jclass parentClass, jobject parentObject, IEsdlDefObject &defObject, StringBuffer& name, StringBuffer& value)
+    {
+        name.set(defObject.queryName());
+        VStringBuffer javaSig("L%s/%s;", esdlService.str(), defObject.queryProp("enum_type"));
+        jfieldID fieldId = JNIenv->GetFieldID(parentClass, name.str(), javaSig);
+        if (!fieldId)
+            return;
+        jobject fieldObj = (jobject) JNIenv->GetObjectField(parentObject, fieldId);
+        if (!fieldObj)
+            return;
+        jstring fieldStr = (jstring) JNIenv->CallObjectMethod(fieldObj, objToString);
+        const char *text = JNIenv->GetStringUTFChars(fieldStr, NULL);
+        if(text)
+            value.set(text);
+    }
+
+    void readComplexType(jclass parentClass, jobject parentObject, IEsdlDefObject &defObject, StringBuffer& name)
+    {
+        IEsdlDefStruct *defStruct = esdl.queryStruct(defObject.queryProp("complex_type"));
+        if (!defStruct)
+            return;
+        name.set(defObject.queryName());
+        VStringBuffer javaSig("L%s/%s;", esdlService.str(), defObject.queryProp("complex_type"));
+        jfieldID fieldId = JNIenv->GetFieldID(parentClass, name.str(), javaSig);
+        if (!fieldId)
+            return;
+        jobject fieldObj = (jobject) JNIenv->GetObjectField(parentObject, fieldId);
+        if (!fieldObj)
+            return;
+        jclass myclass = JNIenv->GetObjectClass(fieldObj);
+
+        Owned<JavaObjectWalkerState> newstate = new JavaObjectWalkerState(JavaObjectWalkerState::WalkerStateInStruct);
+        newstate->reqStruct = defStruct;
+        newstate->currentClass = myclass;
+        newstate->currentObject = fieldObj;
+        newstate->children.setown(newstate->reqStruct->getChildren());
+        newstate->hasMore = newstate->children->first();
+        newstate->name.set(newstate->reqStruct->queryName());
+
+        state->hasMore = state->children->next();
+        stateStack.append(*state.getClear());
+
+        state.set(newstate);
+    }
+
+public:
+    JNIEnv *JNIenv;
+    MapStringTo<jclass> javaClasses;
+    jclass Class;
+    jobject obj;
+    jclass langObjectClass;
+    jmethodID objToString;
+    IEsdlDefinition &esdl;
+    StringAttr reqType;
+    StringAttr esdlService;
+    Owned<JavaObjectWalkerState> state;
+    IArrayOf<JavaObjectWalkerState> stateStack;
+};
+
+
+
 //-------------------------------------------
 
 // There is a singleton JavaThreadContext per thread. This allows us to
@@ -2087,6 +2340,12 @@ public:
         JavaObjectXmlWriter x(JNIenv, result, name, *esdl, esdlservice, *writer);
         x.write();
     }
+
+    IEsdlObjectWalker* createObjectWalker(jobject result, IEsdlDefinition *esdl, const char *esdlservice, const char *name)
+    {
+        return new JavaObjectWalker(JNIenv, result, name, *esdl, esdlservice);
+    }
+
 
 private:
     StringAttr returnType;
@@ -3059,6 +3318,12 @@ public:
     {
         return sharedCtx->writeObjectResult(result.l, dynamic_cast<IEsdlDefinition*>(esdl), esdlservice, esdltype, dynamic_cast<IXmlWriter*>(writer));
     }
+
+    virtual IInterface* createObjectWalker(IInterface *esdl, const char *esdlservice, const char *esdltype)
+    {
+        return sharedCtx->createObjectWalker(result.l, dynamic_cast<IEsdlDefinition*>(esdl), esdlservice, esdltype);
+    }
+
     virtual void importFunction(size32_t lenChars, const char *utf)
     {
         sharedCtx->importFunction(lenChars, utf, classpath, instance);
