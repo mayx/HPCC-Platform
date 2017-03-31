@@ -38,9 +38,97 @@
 
 #include "loggingagentbase.hpp"
 
-class JavaXPP : XmlPullParser
+//TODO: deal with EsdlObjInvalid type
+class EsdlObjectXPP : public XmlPullParser
 {
+public:
+    EsdlObjectXPP(IEsdlObjectWalker* walker_) : walker(walker_)
+    {
+        currentLocalState = BeginState;
+    }
 
+    int next()
+    {
+        if(!walker)
+            return END_DOCUMENT;
+
+        if(currentLocalState == BeginState)
+        {
+            currentType = walker->next(currentName, currentValue, currentAttrs);
+            while(currentType == EsdlObjInvalid)
+                currentType = walker->next(currentName, currentValue, currentAttrs);
+            if(currentType == EsdlObjStart)
+            {
+                currentLocalState = BeginState;
+                return START_TAG;
+            }
+            else if(currentType == EsdlObjEnd)
+            {
+                currentLocalState = BeginState;
+                return END_TAG;
+            }
+            else if(currentType == EsdlObjElement)
+            {
+                currentLocalState = MiddleState;
+                return START_TAG;
+            }
+            else if(currentType == EsdlObjEndAll)
+            {
+                return END_DOCUMENT;
+            }
+        }
+        else if(currentLocalState == MiddleState)
+        {
+            currentLocalState = EndState;
+            return CONTENT;
+        }
+        else //EndState
+        {
+            currentLocalState = BeginState;
+            return END_TAG;
+        }
+
+        return END_DOCUMENT;
+    }
+
+    virtual void readStartTag(StartTag& stag)
+    {
+        stag.setName(currentName.str());
+        //Attrs only contains 1 pair name=NameOfRequest
+        if(currentAttrs.length() > 0)
+        {
+            StringBuffer key, val;
+            for(int i = 0; i < currentAttrs.length(); i++)
+            {
+                if(currentAttrs.charAt(i) == '=')
+                {
+                    key.append(currentAttrs.str(), 0, i);
+                    val.append(currentAttrs.str(), i+1, currentAttrs.length() - i -1);
+                    break;
+                }
+            }
+
+            stag.addAttribute(key.str(), val.str());
+        }
+    }
+
+    virtual const SXT_CHAR* readContent()
+    {
+        return currentValue.str();
+    }
+
+private:
+    typedef enum LocalStateType_
+    {
+        BeginState,
+        MiddleState,
+        EndState
+    } LocalStateType;
+
+    IEsdlObjectWalker* walker;
+    LocalStateType currentLocalState;
+    EsdlObjTypeId currentType;
+    StringBuffer currentName, currentValue, currentAttrs;
 };
 
 /*
@@ -626,17 +714,34 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              javactx->callFunction();
              delete ts;
 
+             ts = new TimeSection("Java3");
              Owned<IInterface> walkerobj = javactx->createObjectWalker(m_esdl, srvdef.queryName(), mthdef.queryResponseType());
              Owned<IEsdlObjectWalker>  walker = dynamic_cast<IEsdlObjectWalker*>(walkerobj.getClear());
-             StringBuffer name, value;
-             EsdlObjTypeId type_next = walker->next(name, value);
-             while(1)
-             {
-                 DBGLOG("type %d: %s=%s", type_next, name.str(), value.str());
-                 if(type_next == EsdlObjEndAll)
-                     break;
-                 type_next = walker->next(name.clear(), value.clear());
+             //TODO: memory leak
+             EsdlObjectXPP* xpp = new EsdlObjectXPP(walker.get());
+
+             /*
+             int level = 0;
+             int type = myxpp1->next();
+             while(type != XmlPullParser::END_DOCUMENT) {
+                 if(type == XmlPullParser::START_TAG) {
+                     level++;
+                     StartTag stag;
+                     myxpp1->readStartTag(stag);
+                     //DBGLOG("Start tag: %s", stag.getLocalName());
+                 }
+                 else if(type == XmlPullParser::END_TAG) {
+                     level--;
+                     //DBGLOG("End tag");
+                 }
+                 else if(type == XmlPullParser::CONTENT) {
+                     StringBuffer buf(myxpp1->readContent());
+                     //DBGLOG("Content: %s", buf.str());
+                 }
+                 type = myxpp1->next();
              }
+             delete ts;
+             DBGLOG("Finished parsing xml with walker, level = %d", level);
 
              ts = new TimeSection("Java3");
              Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
@@ -644,34 +749,35 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              origResp.set(javaRespWriter->str());
              delete ts;
 
-             ts = new TimeSection("Java3-1");
-             int level = 0;
+             ts = new TimeSection("Java3-xpp");
+             level = 0;
              XmlPullParser* xpp1 = new XmlPullParser();
              xpp1->setInput(origResp.str(), origResp.length());
-             int type = xpp1->next();
+             type = xpp1->next();
              while(type != XmlPullParser::END_DOCUMENT) {
                  if(type == XmlPullParser::START_TAG) {
                      level++;
                      StartTag stag;
                      xpp1->readStartTag(stag);
-                     DBGLOG("Start tag: %s", stag.getLocalName());
+                     //DBGLOG("Start tag: %s", stag.getLocalName());
                  }
                  else if(type == XmlPullParser::END_TAG) {
                      level--;
-                     DBGLOG("End tag");
+                     //DBGLOG("End tag");
                  }
                  else if(type == XmlPullParser::CONTENT) {
                      StringBuffer buf(xpp1->readContent());
-                     DBGLOG("Content: %s", buf.str());
+                     //DBGLOG("Content: %s", buf.str());
                  }
                  type = xpp1->next();
              }
-             DBGLOG("Finished parsing xml, level = %d", level);
              delete ts;
-
-             ts = new TimeSection("Java4");
+             DBGLOG("Finished parsing xml, level = %d", level);
+             */
              Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
-             m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+             m_pEsdlTransformer->processHPCCResult(context, mthdef, xpp, finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+             delete xpp;
+
              delete ts;
 
              out.append(finalRespWriter->str());

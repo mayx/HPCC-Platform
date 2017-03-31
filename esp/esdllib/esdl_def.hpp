@@ -98,12 +98,13 @@ typedef enum EsdlObjTypeId_
     EsdlObjElement,
     EsdlObjStart,
     EsdlObjEnd,
+    EsdlObjInvalid,
     EsdlObjEndAll
 } EsdlObjTypeId;
 
 interface IEsdlObjectWalker : extends IInterface
 {
-    virtual EsdlObjTypeId next(StringBuffer& name, StringBuffer& value) = 0;
+    virtual EsdlObjTypeId next(StringBuffer& name, StringBuffer& value, StringBuffer& attrs) = 0;
 };
 
 interface IEsdlDefObjectIterator : extends IInterface

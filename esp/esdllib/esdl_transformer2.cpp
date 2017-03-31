@@ -1782,10 +1782,13 @@ static const char * gotoNextHPCCDataset(XmlPullParser &xppx, StartTag &stag)
 void Esdl2Transformer::processHPCCResult(IEspContext &ctx, IEsdlDefMethod &mthdef, const char *xml, IXmlWriterExt* writer, StringBuffer &logdata, unsigned int flags, const char *ns, const char *schema_location)
 {
     std::unique_ptr<XmlPullParser> xpp(new XmlPullParser());
-
     xpp->setSupportNamespaces(true);
     xpp->setInput(xml, strlen(xml));
+    processHPCCResult(ctx, mthdef, xpp.get(), writer, logdata, flags, ns, schema_location);
+}
 
+void Esdl2Transformer::processHPCCResult(IEspContext &ctx, IEsdlDefMethod &mthdef, XmlPullParser* xpp, IXmlWriterExt* writer, StringBuffer &logdata, unsigned int flags, const char *ns, const char *schema_location)
+{
     StartTag stag;
     int depth=1;
 

@@ -164,6 +164,23 @@ namespace xpp {
       return buf;
     }
 
+    void setName(const SXT_CHAR* name_)
+    {
+        qName = name_;
+        localName = name_;
+    }
+
+    void addAttribute(const SXT_CHAR* name_, const SXT_CHAR* value_)
+    {
+        if(attEnd >= attSize) {
+          ensureCapacity(attEnd);
+        }
+        StartTag::Attribute &att = attArr[attEnd++];  // place for next attribute value
+        att.qName = name_;
+        att.localName = name_;
+        att.value = value_;
+    }
+
   private:
 
   // ==== utility method

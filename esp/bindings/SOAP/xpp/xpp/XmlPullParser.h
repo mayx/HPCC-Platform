@@ -200,7 +200,7 @@ namespace xpp {
     int getLineNumber() { return tokenizer.getLineNumber(); }
     int getColumnNumber() { return tokenizer.getColumnNumber(); }
    
-    int next()  {
+    virtual int next()  {
      if(mustReadNamespaces) {
        throw XmlPullParserException(
          string("start tag must be read to declare namespaces")
@@ -349,7 +349,7 @@ namespace xpp {
     }  
   
 
-    const SXT_CHAR* readContent()  {
+    virtual const SXT_CHAR* readContent()  {
       if(eventType != CONTENT) {
         throw XmlPullParserException("no content available to read");
       }
@@ -385,7 +385,7 @@ namespace xpp {
       etag.localName = elStack[elStackDepth].localName;
     }
   
-    void readStartTag(StartTag& stag)  {
+    virtual void readStartTag(StartTag& stag)  {
       if(eventType != START_TAG)
         throw XmlPullParserException(string(
           "no start tag available to read"));

@@ -771,7 +771,6 @@ public:
     }
 };
 
-
 class EsdlDefStruct : public EsdlDefObject, implements IEsdlDefStruct
 {
 private:

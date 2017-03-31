@@ -1533,6 +1533,7 @@ public:
 
         defObj = NULL;
         hasMore = false;
+        stepCount = 0;
     }
     virtual ~JavaObjectWalkerState()
     {
@@ -1567,6 +1568,8 @@ public:
     bool hasMore;
 
     StringBuffer name, value;
+
+    unsigned short stepCount;
 };
 
 class JavaObjectWalker : implements IEsdlObjectWalker, public CInterface
@@ -1598,24 +1601,63 @@ public:
         }
     }
 
-    EsdlObjTypeId next(StringBuffer& name, StringBuffer& value)
+    EsdlObjTypeId next(StringBuffer& name, StringBuffer& value, StringBuffer& attrs)
     {
+        name.clear();
+        value.clear();
+        attrs.clear();
         if(state->stateType == JavaObjectWalkerState::WalkerStateStarting) {
-            IEsdlDefStruct* defStruct = esdl.queryStruct(reqType);
-            state->defObj = defStruct;
-            if(!state->defObj)
-                return EsdlObjEndAll;
-            state->stateType = JavaObjectWalkerState::WalkerStateInStruct;
-            state->currentClass = Class;
-            state->currentObject = obj;
+            if(state->stepCount == 0)
+            {
+                state->stepCount++;
+                name.set("Response");
+                return EsdlObjStart;
+            }
+            else if(state->stepCount == 1)
+            {
+                state->stepCount++;
+                name.set("Results");
+                return EsdlObjStart;
+            }
+            else if(state->stepCount == 2)
+            {
+                state->stepCount++;
+                name.set("Result");
+                return EsdlObjStart;
+            }
+            else if(state->stepCount == 3)
+            {
+                IEsdlDefStruct *reqStruct = esdl.queryStruct(reqType);
+                const char *reqname = reqStruct->queryName();
+                state->stepCount++;
+                name.set("Dataset");
+                if(attrs)
+                {
+                    attrs.appendf("name=%s", reqname);
+                }
+                return EsdlObjStart;
+            }
+            else
+            {
+                IEsdlDefStruct* defStruct = esdl.queryStruct(reqType);
+                state->defObj = defStruct;
+                if(!state->defObj)
+                {
+                    state->stateType = JavaObjectWalkerState::WalkerStateFinishing;
+                    state->stepCount = 0;
+                    return EsdlObjInvalid;
+                }
+                state->stateType = JavaObjectWalkerState::WalkerStateInStruct;
+                state->currentClass = Class;
+                state->currentObject = obj;
 
+                state->children.setown(defStruct->getChildren());
+                state->hasMore = state->children->first();
+                state->name.set("Row");
 
-            state->children.setown(defStruct->getChildren());
-            state->hasMore = state->children->first();
-            state->name.set(reqType);
-
-            name.set(state->name);
-            return EsdlObjStart;
+                name.set(state->name);
+                return EsdlObjStart;
+            }
         }
         else if(state->stateType == JavaObjectWalkerState::WalkerStateInStruct)
         {
@@ -1624,7 +1666,9 @@ public:
                 name.set(state->name);
                 if(stateStack.length() == 0)
                 {
-                    return EsdlObjEndAll;
+                    state->stateType = JavaObjectWalkerState::WalkerStateFinishing;
+                    state->stepCount = 0;
+                    return EsdlObjEnd;
                 }
                 else
                 {
@@ -1660,9 +1704,7 @@ public:
                     bool isValid = readArray(state->currentClass, state->currentObject, child, name, value);
                     if(!isValid)
                     {
-                        name.clear();
-                        value.clear();
-                        next(name, value);
+                        return EsdlObjInvalid;
                     }
                     return EsdlObjStart;
                 }
@@ -1675,7 +1717,9 @@ public:
                 name.set(state->name);
                 if(stateStack.length() == 0)
                 {
-                    return EsdlObjEndAll;
+                    state->stateType = JavaObjectWalkerState::WalkerStateFinishing;
+                    state->stepCount = 0;
+                    return EsdlObjEnd;
                 }
                 else
                 {
@@ -1701,9 +1745,42 @@ public:
                     }
                     else
                     {
-                        next(name, value);
+                        return EsdlObjInvalid;
                     }
                 }
+            }
+        }
+        else if(state->stateType == JavaObjectWalkerState::WalkerStateFinishing)
+        {
+            if(state->stepCount > 3)
+            {
+                return EsdlObjEndAll;
+            }
+            else if(state->stepCount == 3)
+            {
+                state->stepCount++;
+                name.set("Response");
+                return EsdlObjEnd;
+            }
+            else if(state->stepCount == 2)
+            {
+                state->stepCount++;
+                name.set("Results");
+                return EsdlObjEnd;
+            }
+            else if(state->stepCount == 1)
+            {
+                state->stepCount++;
+                name.set("Result");
+                return EsdlObjEnd;
+            }
+            else if(state->stepCount == 0)
+            {
+                IEsdlDefStruct *reqStruct = esdl.queryStruct(reqType);
+                const char *reqname = reqStruct->queryName();
+                state->stepCount++;
+                name.set("Dataset");
+                return EsdlObjEnd;
             }
         }
 
@@ -1732,7 +1809,7 @@ private:
             return;
         const char *text = JNIenv->GetStringUTFChars(fieldStr, NULL);
         if (text)
-            value.append(text);
+            value.set(text);
         JNIenv->DeleteLocalRef(fieldStr);
     }
     void readSimpleType(jclass parentClass, jobject parentObject, const char *javaSig, StringBuffer& name, StringBuffer& value)
@@ -1779,7 +1856,6 @@ private:
         if (!defStruct)
             return;
         name.set(defObject.queryName());
-        value.clear();
         VStringBuffer javaSig("L%s/%s;", esdlService.str(), defObject.queryProp("complex_type"));
         jfieldID fieldId = JNIenv->GetFieldID(parentClass, name.str(), javaSig);
         if (!fieldId)
@@ -1815,7 +1891,6 @@ private:
 
         const char *fieldname = defObject.queryName();
         name.set(fieldname);
-        value.clear();
 
         jclass arrayListClass = FindClass("java/util/ArrayList");
         if (!arrayListClass)
@@ -1891,7 +1966,6 @@ private:
     {
         bool isValid = false;
         name.set(state->itemTag);
-        value.clear();
         VStringBuffer javaClassName("%s/%s", esdlService.str(), state->itemTypeName.get());
         jclass elementClass = FindClass(javaClassName);
         Owned<JavaObjectWalkerState> newstate;
@@ -1936,6 +2010,9 @@ private:
     StringAttr esdlService;
     Owned<JavaObjectWalkerState> state;
     IArrayOf<JavaObjectWalkerState> stateStack;
+
+    bool isStarting, isEnding;
+    unsigned short startCount, endCount;
 };
 
 

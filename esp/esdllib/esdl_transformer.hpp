@@ -61,6 +61,7 @@ interface IEsdlTransformer : extends IInterface
     virtual int process(IEspContext &ctx, EsdlProcessMode mode, const char* service, const char *method, IPropertyTree &in, IXmlWriterExt * writer, unsigned int flags, const char *ns=NULL)=0;
     virtual int processElement(IEspContext &ctx, const char* service, const char *parentStructName, IXmlWriterExt * writer, const char *xmlin)=0;
     virtual void processHPCCResult(IEspContext &ctx, IEsdlDefMethod &mthdef, const char *xml, IXmlWriterExt * writer, StringBuffer &logdata, unsigned int flags = 0, const char *ns=NULL, const char *schema_location=NULL)=0;
+    virtual void processHPCCResult(IEspContext &ctx, IEsdlDefMethod &mthdef, XmlPullParser* xpp, IXmlWriterExt * writer, StringBuffer &logdata, unsigned int flags = 0, const char *ns=NULL, const char *schema_location=NULL)=0;
 };
 
 esdl_decl IEsdlTransformer *createEsdlXFormerFromXMLFiles(StringArray &files, StringArray &types);
