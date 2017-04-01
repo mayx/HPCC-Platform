@@ -174,7 +174,7 @@ namespace xpp {
     }
 
 
-    int skipSubTree()  {
+    virtual int skipSubTree()  {
       int level = 1;
       StartTag stag;
       int type = XmlPullParser::END_TAG;

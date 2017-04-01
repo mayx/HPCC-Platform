@@ -35,6 +35,7 @@
 #include "wuwebview.hpp"
 #include "build-config.h"
 #include "jsmartsock.ipp"
+#include <memory>
 
 #include "loggingagentbase.hpp"
 
@@ -47,7 +48,7 @@ public:
         currentLocalState = BeginState;
     }
 
-    int next()
+    virtual int next()
     {
         if(!walker)
             return END_DOCUMENT;
@@ -609,6 +610,8 @@ static inline bool isPublishedQuery(EsdlMethodImplType implType)
 
 StringBuffer tmpreq, tmpresp;
 
+#define USEWALKER
+
 void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                                            IEsdlDefService &srvdef,
                                            IEsdlDefMethod &mthdef,
@@ -715,10 +718,17 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              delete ts;
 
              ts = new TimeSection("Java3");
+#ifdef USEWALKER
+             DBGLOG("Using object walker XPP.");
              Owned<IInterface> walkerobj = javactx->createObjectWalker(m_esdl, srvdef.queryName(), mthdef.queryResponseType());
              Owned<IEsdlObjectWalker>  walker = dynamic_cast<IEsdlObjectWalker*>(walkerobj.getClear());
-             //TODO: memory leak
-             EsdlObjectXPP* xpp = new EsdlObjectXPP(walker.get());
+             std::unique_ptr<EsdlObjectXPP> xpp(new EsdlObjectXPP(walker.get()));
+#else
+             DBGLOG("Using regular XPP.");
+             Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
+             javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
+             origResp.set(javaRespWriter->str());
+#endif
 
              /*
              int level = 0;
@@ -740,14 +750,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                  }
                  type = myxpp1->next();
              }
-             delete ts;
              DBGLOG("Finished parsing xml with walker, level = %d", level);
-
-             ts = new TimeSection("Java3");
-             Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
-             javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
-             origResp.set(javaRespWriter->str());
-             delete ts;
 
              ts = new TimeSection("Java3-xpp");
              level = 0;
@@ -775,9 +778,12 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              DBGLOG("Finished parsing xml, level = %d", level);
              */
              Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
-             m_pEsdlTransformer->processHPCCResult(context, mthdef, xpp, finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
-             delete xpp;
+#ifdef USEWALKER
+             m_pEsdlTransformer->processHPCCResult(context, mthdef, xpp.get(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+#else
+             m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
 
+#endif
              delete ts;
 
              out.append(finalRespWriter->str());

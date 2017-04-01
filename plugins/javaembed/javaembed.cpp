@@ -1590,6 +1590,8 @@ public:
     {
         if (Class)
             JNIenv->DeleteGlobalRef(Class);
+        if (obj)
+            JNIenv->DeleteGlobalRef(obj);
 
         HashIterator it(javaClasses);
         ForEach(it)
@@ -1798,7 +1800,6 @@ private:
             return 0;
         jclass Class = (jclass) JNIenv->NewGlobalRef(localClass);
         javaClasses.setValue(name, Class);
-        JNIenv->DeleteLocalRef(localClass);
         return Class;
     }
 
@@ -1848,6 +1849,8 @@ private:
         const char *text = JNIenv->GetStringUTFChars(fieldStr, NULL);
         if(text)
             value.set(text);
+        JNIenv->DeleteLocalRef(fieldStr);
+        JNIenv->DeleteLocalRef(fieldObj);
     }
 
     void readComplexType(jclass parentClass, jobject parentObject, IEsdlDefObject &defObject, StringBuffer& name, StringBuffer& value)
@@ -1875,7 +1878,7 @@ private:
 
         if(state->children)
             state->hasMore = state->children->next();
-        stateStack.append(*state.getClear());
+        stateStack.append(*state.getLink());
 
         state.set(newstate);
     }

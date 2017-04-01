@@ -166,7 +166,7 @@ namespace xpp {
 
     void setName(const SXT_CHAR* name_)
     {
-        qName = name_;
+        //qName = name_;
         localName = name_;
     }
 
