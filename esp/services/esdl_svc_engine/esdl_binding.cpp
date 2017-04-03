@@ -610,7 +610,7 @@ static inline bool isPublishedQuery(EsdlMethodImplType implType)
 
 StringBuffer tmpreq, tmpresp;
 
-#define USEWALKER
+//#define USEWALKER
 
 void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                                            IEsdlDefService &srvdef,
@@ -729,7 +729,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
              origResp.set(javaRespWriter->str());
 #endif
-
+             delete ts;
              /*
              int level = 0;
              int type = myxpp1->next();
@@ -777,6 +777,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              delete ts;
              DBGLOG("Finished parsing xml, level = %d", level);
              */
+             ts = new TimeSection("Java3");
              Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
 #ifdef USEWALKER
              m_pEsdlTransformer->processHPCCResult(context, mthdef, xpp.get(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);

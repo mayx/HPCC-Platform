@@ -893,13 +893,17 @@ void Esdl2Struct::buildDefaults(Esdl2Transformer *xformer, StringBuffer &path, I
 
 Esdl2Base* Esdl2Struct::queryChild(const char* name, bool nocase)
 {
+    Esdl2Base **child = m_child_map.getValue(name);
+    if (child && *child)
+        return *child;
+    /*
     ForEachItemIn(idx, m_children)
     {
         Esdl2Base *child = &m_children.item(idx);
         if ((nocase && strieq(child->queryName(), name)) || streq(child->queryName(),name))
             return child;
     }
-
+    */
     return NULL;
 }
 
