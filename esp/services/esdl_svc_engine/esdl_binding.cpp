@@ -684,6 +684,9 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
 
         if (implType==EsdlMethodImplJava)
         {
+            TimeSection* ts;
+
+
             const char *javaPackage = srvdef.queryName();
             const char *javaScopedClass = tgtcfg->queryProp("@javaclass");
             const char *javaScopedMethod = tgtcfg->queryProp("@javamethod");
@@ -708,7 +711,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                 javactx->paramWriterCommit(writer);
              }
 
-             TimeSection* ts = new TimeSection("Java1");
+             ts = new TimeSection("Java1");
              writer.setown(dynamic_cast<IXmlWriterExt *>(javactx->bindParamWriter(m_esdl, javaPackage, mthdef.queryRequestType(), "request")));
              m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, writer, 0, NULL);
              javactx->paramWriterCommit(writer);
@@ -730,6 +733,8 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
              origResp.set(javaRespWriter->str());
 #endif
              delete ts;
+
+            //origResp.loadFile("/tmp/resp1.txt", true);
              /*
              int level = 0;
              int type = myxpp1->next();

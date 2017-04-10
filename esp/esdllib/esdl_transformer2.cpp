@@ -30,7 +30,7 @@
 using namespace std;
 
 // Uncomment this to debug ESDL issues
-//#define DEBUG_ESDL
+#define DEBUG_ESDL
 
 #ifdef _WIN32
 
@@ -280,12 +280,10 @@ void Esdl2Base::output_content(Esdl2TransformerContext &ctx, IPropertyTree *pt)
     output_content(ctx, pt, xml_tag.str());
 }
 
-void Esdl2Base::output_content(Esdl2TransformerContext &ctx, const char * content, const char *tagname, unsigned leadinzeros)
+void Esdl2Base::output_content(Esdl2TransformerContext &ctx, unsigned contentlen, const char * content, const char *tagname, unsigned leadinzeros)
 {
     if (content && *content && tagname && *tagname && (queryEclNull()==NULL || !streq(queryEclNull(), content)))
     {
-        unsigned contentlen = strlen(content);
-
             if (leadinzeros > 0 )
             {
                 StringBuffer padded;
@@ -324,7 +322,7 @@ void Esdl2Base::output_content(Esdl2TransformerContext &ctx, const char * conten
                         break;
                     case ESDLT_STRING:
                     default:
-                        ctx.writer->outputUtf8(rtlUtf8Length(strlen(content),content), content, tagname);
+                        ctx.writer->outputUtf8(rtlUtf8Length(contentlen,content), content, tagname);
                         break;
                 }
             }
@@ -342,7 +340,7 @@ void Esdl2Base::output_content(Esdl2TransformerContext &ctx, IPropertyTree *pt, 
     const char* leadingZeroStr = m_def->queryProp("leading_zero");
     unsigned leadingZero =  (leadingZeroStr && *leadingZeroStr) ? atoi(leadingZeroStr) : 0;
 
-    output_content(ctx, content.str(), tagname, leadingZero);
+    output_content(ctx, content.length(), content.str(), tagname, leadingZero);
 }
 
 void Esdl2Base::output_content(Esdl2TransformerContext &ctx, const char *tagname)
@@ -370,7 +368,7 @@ void Esdl2Base::output_content(Esdl2TransformerContext &ctx, const char *tagname
     const char* lz = m_def->queryProp("leading_zero");
     unsigned leadingZero =  (lz && *lz) ? atoi(lz) : 0;
 
-    output_content(ctx, content.str(), tagname, leadingZero);
+    output_content(ctx, content.length(), content.str(), tagname, leadingZero);
 }
 
 void Esdl2Base::output_content(Esdl2TransformerContext &ctx)
@@ -896,6 +894,10 @@ Esdl2Base* Esdl2Struct::queryChild(const char* name, bool nocase)
     Esdl2Base **child = m_child_map.getValue(name);
     if (child && *child)
         return *child;
+    //auto it = m_child_map1.find(name);
+    //if(it!=m_child_map1.end())
+    //    return it->second;
+
     /*
     ForEachItemIn(idx, m_children)
     {
@@ -1200,6 +1202,7 @@ void Esdl2Struct::addChildren(Esdl2Transformer *xformer, IEsdlDefObjectIterator 
         {
             m_children.append(*obj);
             m_child_map.setValue(obj->queryName(), obj);
+            m_child_map1[obj->queryName()] = obj;
             if (obj->queryEclName())
                 m_child_map.setValue(obj->queryEclName(), obj);
             if (might_skip_root && !stricmp(obj->queryName(), "response"))

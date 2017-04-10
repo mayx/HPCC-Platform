@@ -25,6 +25,8 @@
 #include "esdl_transformer.hpp"
 #include <xpp/XmlPullParser.h>
 #include <map>
+#include <unordered_map>
+
 #include "esp.hpp"
 #include "soapesp.hpp"
 #include "ws_ecl_client.hpp"
@@ -194,7 +196,7 @@ public:
     void output_content(Esdl2TransformerContext &ctx);
     void output_content(Esdl2TransformerContext &ctx, IPropertyTree *pt, const char *tagname);
     void output_content(Esdl2TransformerContext &ctx, IPropertyTree *pt);
-    void output_content(Esdl2TransformerContext &ctx, const char * content, const char *tagname, unsigned leadinzeros);
+    void output_content(Esdl2TransformerContext &ctx, unsigned contentlen, const char * content, const char *tagname, unsigned leadinzeros);
 
 
     void output_ecl_date(Esdl2TransformerContext &ctx, const char *tagname);
@@ -336,6 +338,7 @@ protected:
 
 private:
     EsdlBaseMap   m_child_map;
+    std::unordered_map<std::string, EsdlBasePtr> m_child_map1;
 
 public:
     Esdl2Struct(Esdl2Transformer *xformer, IEsdlDefStruct *def, EsdlBasicElementType t=ESDLT_STRUCT);
