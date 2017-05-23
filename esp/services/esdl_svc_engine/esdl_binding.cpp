@@ -586,7 +586,87 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
 
         implType = getEsdlMethodImplType(tgtcfg->queryProp("@querytype"));
 
-        if (implType==EsdlMethodImplJava)
+        if(false)//(implType == EsdlMethodImplJava)
+        {
+            Owned<IXmlWriterExt> reqWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
+
+            //Preprocess Request
+            StringBuffer reqcontent;
+            unsigned xflags = (isPublishedQuery(implType)) ? ROXIEREQ_FLAGS : ESDLREQ_FLAGS;
+            context.addTraceSummaryTimeStamp(LogNormal, "srt-reqproc");
+            m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, reqWriter.get(), xflags, NULL);
+            context.addTraceSummaryTimeStamp(LogNormal, "end-reqproc");
+
+            if(isPublishedQuery(implType))
+                tgtctx.setown(createTargetContext(context, tgtcfg.get(), srvdef, mthdef, req));
+
+            reqcontent.set(reqWriter->str());
+
+            context.addTraceSummaryTimeStamp(LogNormal, "ser-xmlreq");
+
+
+            const char *javaPackage = srvdef.queryName();
+            const char *javaScopedClass = tgtcfg->queryProp("@javaclass");
+            const char *javaScopedMethod = tgtcfg->queryProp("@javamethod");
+
+            Linked<IEmbedServiceContext> srvctx = javaServiceMap.getValue(javaScopedClass);
+            if (!srvctx)
+            {
+                StringBuffer errmsg;
+                errmsg.appendf("Java class %s not loaded for method %s", javaScopedClass, mthName);
+                Linked<IException> exception = javaExceptionMap.getValue(javaScopedClass);
+                if(exception)
+                {
+                    errmsg.append(". Cause: ");
+                    exception->errorMessage(errmsg);
+                }
+                throw makeWsException(ERR_ESDL_BINDING_BADREQUEST, WSERR_SERVER, "ESDL", "%s", errmsg.str());
+            }
+
+            //"WsWorkunits.WsWorkunitsService.WUAbort:(LWsWorkunits/EsdlContext;LWsWorkunits/WUAbortRequest;)LWsWorkunits/WUAbortResponse;";
+            VStringBuffer signature("%s:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", javaScopedMethod);
+
+            Owned<IEmbedFunctionContext> javactx;
+            javactx.setown(srvctx->createFunctionContext(signature));
+            if (!javactx)
+                throw makeWsException(ERR_ESDL_BINDING_BADREQUEST, WSERR_SERVER, "ESDL", "Java method %s could not be loaded from class %s in esdl method %s", tgtcfg->queryProp("@javamethod"), javaScopedClass, mthName);
+
+            StringBuffer ctxbuf;
+            ctxbuf.append("<EsdlContext>");
+            if (context.queryUserId())
+                ctxbuf.appendf("<username>%s</username>", context.queryUserId());
+            ctxbuf.append("</EsdlContext>");
+
+            javactx->bindVStringParam("CtxXML", ctxbuf.str());
+            javactx->bindVStringParam("ReqXML", reqcontent.str());
+             javactx->callFunction();
+             unsigned int len;
+             char* result;
+             javactx->getStringResult(len, result);
+
+             origResp.append(len, result);
+             //TODO: causing double free origResp.setBuffer(len+1, result, len);
+             //DBGLOG("response: %s", origResp.str());
+            //handleFinalRequest(context, tgtcfg, tgtctx, srvdef, mthdef, ns, reqcontent, origResp, isPublishedQuery(implType), implType==EsdlMethodImplProxy);
+
+
+            context.addTraceSummaryTimeStamp(LogNormal, "end-HFReq");
+
+            if(implType == EsdlMethodImplJava || isPublishedQuery(implType))
+            {
+                context.addTraceSummaryTimeStamp(LogNormal, "srt-procres");
+                Owned<IXmlWriterExt> respWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
+                m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), respWriter.get(), logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+                context.addTraceSummaryTimeStamp(LogNormal, "end-procres");
+
+                out.append(respWriter->str());
+            }
+            else if(implType==EsdlMethodImplProxy)
+                getSoapBody(out, origResp);
+            else
+                m_pEsdlTransformer->process(context, EsdlResponseMode, srvdef.queryName(), mthdef.queryName(), out, origResp.str(), ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+        }
+        else if (implType==EsdlMethodImplJava)
         {
             const char *javaPackage = srvdef.queryName();
             const char *javaScopedClass = tgtcfg->queryProp("@javaclass");

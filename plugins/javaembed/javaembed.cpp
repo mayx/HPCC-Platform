@@ -101,15 +101,27 @@ public:
         const IProperties &conf = queryEnvironmentConf();
         if (conf.hasProp("classpath"))
         {
-            conf.getProp("classpath", newPath);
-            newPath.append(ENVSEPCHAR);
+            StringBuffer cpath;
+            conf.getProp("classpath", cpath);
+            if(ENVSEPCHAR != ';')
+                cpath.replace(';', ENVSEPCHAR);
+            newPath.append(cpath).append(ENVSEPCHAR);
+            //conf.getProp("classpath", newPath);
+            //newPath.append(ENVSEPCHAR);
         }
         else
         {
             newPath.append(INSTALL_DIR).append(PATHSEPCHAR).append("classes").append(ENVSEPCHAR);
         }
+        if(conf.hasProp("extrajars"))
+        {
+            conf.getProp("extrajars", newPath);
+            newPath.append(ENVSEPCHAR);
+        }
         newPath.append(".");
         optionStrings.append(newPath);
+
+        DBGLOG("newPath=%s", newPath.str());
 
         if (conf.hasProp("jvmlibpath"))
         {
@@ -1617,6 +1629,7 @@ public:
                 if (!strchr(path, ':'))
                     usepath.append("file:");
                 usepath.append(path);
+                DBGLOG("usepath=%s", usepath.str());
                 jstring jstr = JNIenv->NewStringUTF(usepath.str());
                 checkException();
                 jobject URLobj = JNIenv->NewObject(URLcls, URLclsMid, jstr);
