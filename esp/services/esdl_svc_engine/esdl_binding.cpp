@@ -586,7 +586,7 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
 
         implType = getEsdlMethodImplType(tgtcfg->queryProp("@querytype"));
 
-        if(false)//(implType == EsdlMethodImplJava)
+        if(implType == EsdlMethodImplJava)
         {
             Owned<IXmlWriterExt> reqWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
 
@@ -637,18 +637,15 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                 ctxbuf.appendf("<username>%s</username>", context.queryUserId());
             ctxbuf.append("</EsdlContext>");
 
-            javactx->bindVStringParam("CtxXML", ctxbuf.str());
-            javactx->bindVStringParam("ReqXML", reqcontent.str());
-             javactx->callFunction();
-             unsigned int len;
-             char* result;
-             javactx->getStringResult(len, result);
+            javactx->bindStringParam("CtxXML", ctxbuf.length(), ctxbuf.str());
+            javactx->bindStringParam("ReqXML", reqcontent.length(), reqcontent.str());
+            javactx->callFunction();
+            unsigned int len;
+            char* result;
+            javactx->getStringResult(len, result);
 
-             origResp.append(len, result);
-             //TODO: causing double free origResp.setBuffer(len+1, result, len);
-             //DBGLOG("response: %s", origResp.str());
-            //handleFinalRequest(context, tgtcfg, tgtctx, srvdef, mthdef, ns, reqcontent, origResp, isPublishedQuery(implType), implType==EsdlMethodImplProxy);
-
+            origResp.append(len, result);
+            //DBGLOG("response: %s", origResp.str());
 
             context.addTraceSummaryTimeStamp(LogNormal, "end-HFReq");
 
