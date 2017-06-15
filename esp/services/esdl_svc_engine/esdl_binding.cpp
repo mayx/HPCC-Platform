@@ -490,6 +490,7 @@ enum EsdlMethodImplType
     EsdlMethodImplRoxie,
     EsdlMethodImplWsEcl,
     EsdlMethodImplProxy,
+    EsdlMethodImplJavaOld,
     EsdlMethodImplJava
 };
 
@@ -503,6 +504,8 @@ inline EsdlMethodImplType getEsdlMethodImplType(const char *querytype)
             return EsdlMethodImplWsEcl;
         if (strieq(querytype, "proxy"))
             return EsdlMethodImplProxy;
+        if (strieq(querytype, "javaold"))
+            return EsdlMethodImplJava;
         if (strieq(querytype, "java"))
             return EsdlMethodImplJava;
     }
@@ -649,21 +652,12 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
 
             context.addTraceSummaryTimeStamp(LogNormal, "end-HFReq");
 
-            if(implType == EsdlMethodImplJava || isPublishedQuery(implType))
-            {
-                context.addTraceSummaryTimeStamp(LogNormal, "srt-procres");
-                Owned<IXmlWriterExt> respWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
-                m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), respWriter.get(), logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
-                context.addTraceSummaryTimeStamp(LogNormal, "end-procres");
+            Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
+            m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
 
-                out.append(respWriter->str());
-            }
-            else if(implType==EsdlMethodImplProxy)
-                getSoapBody(out, origResp);
-            else
-                m_pEsdlTransformer->process(context, EsdlResponseMode, srvdef.queryName(), mthdef.queryName(), out, origResp.str(), ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+            out.append(finalRespWriter->str());
         }
-        else if (implType==EsdlMethodImplJava)
+        else if (implType==EsdlMethodImplJavaOld)
         {
             const char *javaPackage = srvdef.queryName();
             const char *javaScopedClass = tgtcfg->queryProp("@javaclass");
@@ -692,29 +686,29 @@ void EsdlServiceImpl::handleServiceRequest(IEspContext &context,
                 throw makeWsException(ERR_ESDL_BINDING_BADREQUEST, WSERR_SERVER, "ESDL", "Java method %s could not be loaded from class %s in esdl method %s", tgtcfg->queryProp("@javamethod"), javaScopedClass, mthName);
 
             Owned<IXmlWriterExt> writer = dynamic_cast<IXmlWriterExt *>(javactx->bindParamWriter(m_esdl, javaPackage, "EsdlContext", "context"));
-             if (writer)
-             {
+            if (writer)
+            {
                 if (context.queryUserId())
                     writer->outputCString(context.queryUserId(), "username");
                 javactx->paramWriterCommit(writer);
-             }
+            }
 
-             writer.setown(dynamic_cast<IXmlWriterExt *>(javactx->bindParamWriter(m_esdl, javaPackage, mthdef.queryRequestType(), "request")));
-             context.addTraceSummaryTimeStamp(LogNormal, "srt-reqproc");
-             m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, writer, 0, NULL);
-             context.addTraceSummaryTimeStamp(LogNormal, "end-reqproc");
+            writer.setown(dynamic_cast<IXmlWriterExt *>(javactx->bindParamWriter(m_esdl, javaPackage, mthdef.queryRequestType(), "request")));
+            context.addTraceSummaryTimeStamp(LogNormal, "srt-reqproc");
+            m_pEsdlTransformer->process(context, EsdlRequestMode, srvdef.queryName(), mthdef.queryName(), *req, writer, 0, NULL);
+            context.addTraceSummaryTimeStamp(LogNormal, "end-reqproc");
 
-             javactx->paramWriterCommit(writer);
-             javactx->callFunction();
+            javactx->paramWriterCommit(writer);
+            javactx->callFunction();
 
-             Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
-             javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
-             origResp.set(javaRespWriter->str());
+            Owned<IXmlWriterExt> javaRespWriter = createIXmlWriterExt(0, 0, NULL, WTStandard);
+            javactx->writeResult(m_esdl, srvdef.queryName(), mthdef.queryResponseType(), javaRespWriter);
+            origResp.set(javaRespWriter->str());
 
-             Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
-             m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
+            Owned<IXmlWriterExt> finalRespWriter = createIXmlWriterExt(0, 0, NULL, (flags & ESDL_BINDING_RESPONSE_JSON) ? WTJSON : WTStandard);
+            m_pEsdlTransformer->processHPCCResult(context, mthdef, origResp.str(), finalRespWriter, logdata, ESDL_TRANS_OUTPUT_ROOT, ns, schema_location);
 
-             out.append(finalRespWriter->str());
+            out.append(finalRespWriter->str());
         }
         else
         {

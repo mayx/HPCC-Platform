@@ -21,7 +21,7 @@
 TODO:
 - Check defualts are handled in unserializing (done by original code)
 - Test different primitive types for unserialze and serialize, especially serialize
-- binary, base64binary
+- binary, base64binary, unsigned byte
 - Better exception handling
 - Compare results with original implementation
  -->
@@ -487,7 +487,10 @@ enum <xsl:value-of select="@name"/><xsl:text> {
             <xsl:value-of select="$request_type"/> request = unserialize<xsl:value-of select="$request_type"/>(ReqXML);
             <xsl:value-of select="$response_type"/> response = <xsl:value-of select="$name"/>(ctx, request);
             StringBuilder respbuilder = new StringBuilder();
-            serialize<xsl:value-of select="$response_type"/>(response, respbuilder);
+            respbuilder.append("&lt;Response&gt;&lt;Results&gt;&lt;Result&gt;&lt;Dataset name=\"").append("<xsl:value-of select="$response_type"/>")
+                .append("\"&gt;&lt;Row&gt;");
+            serialize<xsl:value-of select="$response_type"/>(null, response, respbuilder);
+            respbuilder.append("&lt;/Row&gt;&lt;/Dataset&gt;&lt;/Result&gt;&lt;/Results&gt;&lt;/Response&gt;");
             respXML = respbuilder.toString();
         } catch (Exception e) {
             System.out.println("Exception: " + e);
@@ -641,9 +644,10 @@ enum <xsl:value-of select="@name"/><xsl:text> {
 </xsl:template>
 
 <xsl:template name="generateSerializeForStruct">
-    public void serialize<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/> structobj, StringBuilder resultbuf)
+    public void serialize<xsl:value-of select="@name"/>(String tagname, <xsl:value-of select="@name"/> structobj, StringBuilder resultbuf)
     {
-        resultbuf.append("&lt;").append("<xsl:value-of select="@name"/>").append("&gt;");<xsl:text></xsl:text>
+        if(tagname != null &amp;&amp; tagname.length() > 0)
+            resultbuf.append("&lt;").append(tagname).append("&gt;");<xsl:text></xsl:text>
         <xsl:for-each select="./*">
         if(structobj.<xsl:value-of select="@name"/> != null)
         {<xsl:choose>
@@ -655,7 +659,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
             resultbuf.append("&lt;/").append("<xsl:value-of select="@name"/>").append("&gt;");<xsl:text></xsl:text>
                     </xsl:when>
                     <xsl:when test="@complex_type">
-            serialize<xsl:value-of select="@complex_type"/>(structobj.<xsl:value-of select="@name"/>, resultbuf);<xsl:text></xsl:text>
+            serialize<xsl:value-of select="@complex_type"/>("<xsl:value-of select="@name"/>", structobj.<xsl:value-of select="@name"/>, resultbuf);<xsl:text></xsl:text>
                     </xsl:when>
                 </xsl:choose>
             </xsl:when>
@@ -684,9 +688,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
             {<xsl:text></xsl:text>
                 <xsl:choose>
                    <xsl:when test="$typeCategory='ESPTypeCategory.STRUCT'">
-                resultbuf.append("&lt;").append("<xsl:value-of select="@item_tag"/>").append("&gt;");
-                serialize<xsl:value-of select="@type"/>(curobj, resultbuf);
-                resultbuf.append("&lt;/").append("<xsl:value-of select="@item_tag"/>").append("&gt;");<xsl:text></xsl:text>
+                serialize<xsl:value-of select="@type"/>("<xsl:value-of select="@item_tag"/>", curobj, resultbuf);
                    </xsl:when>
                    <xsl:when test="typeCatgory='ESPTypeCategory.ENUM'">
                 resultbuf.append("&lt;").append("<xsl:value-of select="@item_tag"/>").append("&gt;")
@@ -702,7 +704,8 @@ enum <xsl:value-of select="@name"/><xsl:text> {
             </xsl:when>
         </xsl:choose>
         }</xsl:for-each>
-        resultbuf.append("&lt;").append("<xsl:value-of select="@name"/>").append("&gt;");
+        if(tagname != null &amp;&amp; tagname.length() > 0)
+            resultbuf.append("&lt;/").append(tagname).append("&gt;");
     }
 </xsl:template>
 </xsl:stylesheet>
