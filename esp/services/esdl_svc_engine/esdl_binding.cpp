@@ -505,7 +505,7 @@ inline EsdlMethodImplType getEsdlMethodImplType(const char *querytype)
         if (strieq(querytype, "proxy"))
             return EsdlMethodImplProxy;
         if (strieq(querytype, "javaold"))
-            return EsdlMethodImplJava;
+            return EsdlMethodImplJavaOld;
         if (strieq(querytype, "java"))
             return EsdlMethodImplJava;
     }

@@ -63,28 +63,28 @@ class <xsl:value-of select="@name"/><xsl:if test="@base_type"> extends <xsl:valu
         <xsl:choose>
             <xsl:when test="$typename='bool'"><xsl:value-of select="'Boolean'"/></xsl:when>
             <xsl:when test="$typename='boolean'"><xsl:value-of select="'Boolean'"/></xsl:when>
-            <xsl:when test="$typename='decimal'"><xsl:value-of select="'BigDecimal'"/></xsl:when>
+            <xsl:when test="$typename='decimal'"><xsl:value-of select="'Float'"/></xsl:when> <!-- TODO: should be BigDecimal. Temporary to make old way work -->
             <xsl:when test="$typename='float'"><xsl:value-of select="'Float'"/></xsl:when>
             <xsl:when test="$typename='double'"><xsl:value-of select="'Double'"/></xsl:when>
             <xsl:when test="$typename='integer'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='int64'"><xsl:value-of select="'BigInteger'"/></xsl:when>
             <xsl:when test="$typename='long'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='int'"><xsl:value-of select="'Integer'"/></xsl:when>
-            <xsl:when test="$typename='short'"><xsl:value-of select="'Integer'"/></xsl:when>
+            <xsl:when test="$typename='short'"><xsl:value-of select="'Short'"/></xsl:when>
             <xsl:when test="$typename='nonPositiveInteger'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='negativeInteger'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='nonNegativeInteger'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='unsigned'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='unsignedLong'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='unsignedInt'"><xsl:value-of select="'Integer'"/></xsl:when>
-            <xsl:when test="$typename='unsignedShort'"><xsl:value-of select="'Integer'"/></xsl:when>
+            <xsl:when test="$typename='unsignedShort'"><xsl:value-of select="'Short'"/></xsl:when> <!-- TODO: should be Integer. Temporary to make old way work -->
             <xsl:when test="$typename='unsignedByte'"><xsl:value-of select="'Byte'"/></xsl:when>
             <xsl:when test="$typename='positiveInteger'"><xsl:value-of select="'Integer'"/></xsl:when>
             <xsl:when test="$typename='base64Binary'"><xsl:value-of select="'String'"/></xsl:when>
             <xsl:when test="$typename='string'"><xsl:value-of select="'String'"/></xsl:when>
             <xsl:when test="$typename='xsdString'"><xsl:value-of select="'String'"/></xsl:when>
             <xsl:when test="$typename='normalizedString'"><xsl:value-of select="'String'"/></xsl:when>
-            <xsl:when test="$typename='binary'"><xsl:value-of select="'Byte'"/></xsl:when>
+            <xsl:when test="$typename='binary'"><xsl:value-of select="'byte[]'"/></xsl:when>
             <xsl:otherwise><xsl:value-of select="$typename"/></xsl:otherwise>
         </xsl:choose>
 </xsl:template>
@@ -95,7 +95,8 @@ class <xsl:value-of select="@name"/><xsl:if test="@base_type"> extends <xsl:valu
             <xsl:when test="/esxdl/EsdlStruct[@name=$typename]">ESPTypeCategory.STRUCT</xsl:when>
             <xsl:when test="/esxdl/EsdlSRequest[@name=$typename]">ESPTypeCategory.STRUCT</xsl:when>
             <xsl:when test="/esxdl/EsdlResponse[@name=$typename]">ESPTypeCategory.STRUCT</xsl:when>
-            <xsl:when test="/esxdl/EsdlEnumType[@name=$typename]">2ESPTypeCategory.ENUM</xsl:when>
+            <xsl:when test="/esxdl/EsdlEnumType[@name=$typename]">ESPTypeCategory.ENUM</xsl:when>
+            <xsl:when test="$typename='binary'">ESPTypeCategory.BINARY</xsl:when>
             <xsl:otherwise>ESPTypeCategory.PRIMITIVE</xsl:otherwise>
         </xsl:choose>
 </xsl:template>
@@ -137,7 +138,7 @@ class <xsl:value-of select="@name"/><xsl:if test="@base_type"> extends <xsl:valu
         <xsl:text> </xsl:text>
         <xsl:value-of select="@name"/>
         <xsl:choose>
-            <xsl:when test="@type='binary'"><xsl:value-of select="'[]'"/></xsl:when>
+            <xsl:when test="@type='binary'"></xsl:when>
             <xsl:when test="@default">
         <xsl:text> = new </xsl:text><xsl:value-of select="$primitive"/><xsl:text>(</xsl:text>
         <xsl:choose>
@@ -328,7 +329,8 @@ enum <xsl:value-of select="@name"/><xsl:text> {
     {
         PRIMITIVE,
         STRUCT,
-        ENUM
+        ENUM,
+        BINARY
     }
 
     public &lt;T&gt; ESPUnserializeResultPair&lt;T&gt; unserializePrimitive(int[] Level, XmlPullParser xpp, Class&lt;T&gt; valueType)
@@ -376,6 +378,43 @@ enum <xsl:value-of select="@name"/><xsl:text> {
         result.event = eventType;
         return result;
     }
+
+    public &lt;T&gt; ESPUnserializeResultPair&lt;byte[]&gt; unserializeBinary(int[] Level, XmlPullParser xpp)
+            throws XmlPullParserException, IOException
+    {
+        ESPUnserializeResultPair&lt;byte[]&gt; result = new ESPUnserializeResultPair&lt;byte[]&gt;();
+        result.value = null;
+        int eventType = xpp.next();
+        int L = Level[0];
+        while (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
+        {
+            if (eventType == XmlPullParser.TEXT)
+            {
+                String valstr = xpp.getText();
+                if(valstr != null)
+                {
+                    valstr.trim();
+                    if(valstr.length() > 0)
+                    {
+                        result.value = valstr.getBytes();
+                    }
+                }
+            }
+            else if (eventType == XmlPullParser.START_TAG)
+            {
+                Level[0]++;
+            }
+            else if (eventType == XmlPullParser.END_TAG)
+            {
+                Level[0]--;
+            }
+            if (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
+                eventType = xpp.next();
+        }
+        result.event = eventType;
+        return result;
+    }
+
 
     public &lt;T&gt; ESPUnserializeResultPair&lt;ArrayList&lt;T&gt;&gt; unserializeArrayList(int[] Level, XmlPullParser xpp, String itemName, String itemTypeName, ESPTypeCategory itemTypeCategory, Class&lt;T&gt; itemType)
             throws XmlPullParserException, IOException
@@ -452,6 +491,12 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                             // TODO Auto-generated catch block
                             e.printStackTrace();
                         }
+                    }
+                    else if(itemTypeCategory == ESPTypeCategory.BINARY)
+                    {
+                        ESPUnserializeResultPair&lt;T&gt; result = (ESPUnserializeResultPair&lt;T&gt;)unserializeBinary(Level, xpp);
+                        eventType = result.event;
+                        arr.add(result.value);
                     }
                     else //Primitive
                     {
@@ -552,6 +597,13 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                         <xsl:when test="name()='EsdlElement'">
                             <xsl:choose>
                                 <xsl:when test="@type">
+                                <xsl:choose>
+                                <xsl:when test="@type='binary'">
+                   ESPUnserializeResultPair&lt;byte[]&gt; result = unserializeBinary(Level, xpp);
+                   eventType = result.event;
+                   structobj.<xsl:value-of select="@name"/>=result.value;<xsl:text></xsl:text>
+                                </xsl:when>
+                                <xsl:otherwise>
                                     <xsl:variable name="javaTypeName">
                                         <xsl:call-template name="outputJavaPrimitive">
                                             <xsl:with-param name="typename">
@@ -562,6 +614,8 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                     ESPUnserializeResultPair&lt;<xsl:value-of select="$javaTypeName"/>&gt; result = unserializePrimitive(Level, xpp, <xsl:value-of select="$javaTypeName"/>.class);
                     eventType = result.event;
                     structobj.<xsl:value-of select="@name"/>=result.value;<xsl:text></xsl:text>
+                                </xsl:otherwise>
+                                </xsl:choose>
                                 </xsl:when>
                                 <xsl:when test="@complex_type"><xsl:text>
                     </xsl:text>
@@ -654,9 +708,16 @@ enum <xsl:value-of select="@name"/><xsl:text> {
             <xsl:when test="name()='EsdlElement'">
                 <xsl:choose>
                     <xsl:when test="@type">
-            resultbuf.append("&lt;").append("<xsl:value-of select="@name"/>").append("&gt;");
-            resultbuf.append(structobj.<xsl:value-of select="@name"/>);
+            resultbuf.append("&lt;").append("<xsl:value-of select="@name"/>").append("&gt;");<xsl:text></xsl:text>
+                    <xsl:choose>
+                    <xsl:when test="@type='binary'">
+            resultbuf.append(new String(structobj.<xsl:value-of select="@name"/>));<xsl:text></xsl:text>
+                    </xsl:when>
+                    <xsl:otherwise>
+            resultbuf.append(structobj.<xsl:value-of select="@name"/>);<xsl:text></xsl:text>
+                    </xsl:otherwise>
             resultbuf.append("&lt;/").append("<xsl:value-of select="@name"/>").append("&gt;");<xsl:text></xsl:text>
+                    </xsl:choose>
                     </xsl:when>
                     <xsl:when test="@complex_type">
             serialize<xsl:value-of select="@complex_type"/>("<xsl:value-of select="@name"/>", structobj.<xsl:value-of select="@name"/>, resultbuf);<xsl:text></xsl:text>
@@ -693,6 +754,10 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                    <xsl:when test="typeCatgory='ESPTypeCategory.ENUM'">
                 resultbuf.append("&lt;").append("<xsl:value-of select="@item_tag"/>").append("&gt;")
                          .append(curobj.toString()).append("&lt;/").append("<xsl:value-of select="@item_tag"/>").append("&gt;");<xsl:text></xsl:text>
+                   </xsl:when>
+                   <xsl:when test="@type='binary'">
+                resultbuf.append("&lt;").append("<xsl:value-of select="@item_tag"/>").append("&gt;")
+                         .append(new String(curobj)).append("&lt;/").append("<xsl:value-of select="@item_tag"/>").append("&gt;");<xsl:text></xsl:text>
                    </xsl:when>
                    <xsl:otherwise>
                 resultbuf.append("&lt;").append("<xsl:value-of select="@item_tag"/>").append("&gt;")
