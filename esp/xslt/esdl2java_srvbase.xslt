@@ -19,11 +19,13 @@
 
 <!--
 TODO:
-- Check defualts are handled in unserializing (done by original code)
+- Check defualts are handled in unserializing (X done by original code)
 - Test different primitive types for unserialze and serialize, especially serialize
 - binary, base64binary, unsigned byte
-- Better exception handling
+- Better exception handling?
 - Compare results with original implementation
+- Handle string seperately
+- XML decode/encode?
  -->
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">
     <xsl:output method="text" omit-xml-declaration="yes" indent="no"/>
@@ -96,7 +98,6 @@ class <xsl:value-of select="@name"/><xsl:if test="@base_type"> extends <xsl:valu
             <xsl:when test="/esxdl/EsdlSRequest[@name=$typename]">ESPTypeCategory.STRUCT</xsl:when>
             <xsl:when test="/esxdl/EsdlResponse[@name=$typename]">ESPTypeCategory.STRUCT</xsl:when>
             <xsl:when test="/esxdl/EsdlEnumType[@name=$typename]">ESPTypeCategory.ENUM</xsl:when>
-            <xsl:when test="$typename='binary'">ESPTypeCategory.BINARY</xsl:when>
             <xsl:otherwise>ESPTypeCategory.PRIMITIVE</xsl:otherwise>
         </xsl:choose>
 </xsl:template>
@@ -302,7 +303,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                 String tagname = xpp.getName();
                 if (tagname.equals("username"))
                 {
-                    ESPUnserializeResultPair&lt;String&gt; result = unserializePrimitive(Level, xpp, String.class);
+                    ESPUnserializeResultPair&lt;String&gt; result = unserializeString(Level, xpp);
                     eventType = result.event;
                     structobj.username = result.value;
                 }
@@ -333,6 +334,38 @@ enum <xsl:value-of select="@name"/><xsl:text> {
         BINARY
     }
 
+    public ESPUnserializeResultPair&lt;String&gt; unserializeString(int[] Level, XmlPullParser xpp)
+            throws XmlPullParserException, IOException
+    {
+        ESPUnserializeResultPair&lt;String&gt; result = new ESPUnserializeResultPair&lt;String&gt;();
+        result.value = null;
+        int eventType = xpp.next();
+        int L = Level[0];
+        while (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
+        {
+            if (eventType == XmlPullParser.TEXT &amp;&amp; Level[0] == L)
+            {
+                String valstr = xpp.getText();
+                if(valstr != null)
+                {
+                    result.value = valstr.trim();
+                }
+            }
+            else if (eventType == XmlPullParser.START_TAG)
+            {
+                Level[0]++;
+            }
+            else if (eventType == XmlPullParser.END_TAG)
+            {
+                Level[0]--;
+            }
+            if (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
+                eventType = xpp.next();
+        }
+        result.event = eventType;
+        return result;
+    }
+
     public &lt;T&gt; ESPUnserializeResultPair&lt;T&gt; unserializePrimitive(int[] Level, XmlPullParser xpp, Class&lt;T&gt; valueType)
             throws XmlPullParserException, IOException
     {
@@ -342,7 +375,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
         int L = Level[0];
         while (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
         {
-            if (eventType == XmlPullParser.TEXT)
+            if (eventType == XmlPullParser.TEXT &amp;&amp; Level[0] == L)
             {
                 String valstr = xpp.getText();
                 if(valstr != null)
@@ -388,7 +421,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
         int L = Level[0];
         while (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L)
         {
-            if (eventType == XmlPullParser.TEXT)
+            if (eventType == XmlPullParser.TEXT &amp;&amp; Level[0] == L)
             {
                 String valstr = xpp.getText();
                 if(valstr != null)
@@ -492,9 +525,17 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                             e.printStackTrace();
                         }
                     }
-                    else if(itemTypeCategory == ESPTypeCategory.BINARY)
+                    else if(itemTypeName.equals("binary"))
                     {
+                        @SuppressWarnings("unchecked")
                         ESPUnserializeResultPair&lt;T&gt; result = (ESPUnserializeResultPair&lt;T&gt;)unserializeBinary(Level, xpp);
+                        eventType = result.event;
+                        arr.add(result.value);
+                    }
+                    else if(itemTypeName.equals("string"))
+                    {
+                        @SuppressWarnings("unchecked")
+                        ESPUnserializeResultPair&lt;T&gt; result = (ESPUnserializeResultPair&lt;T&gt;)unserializeString(Level, xpp);
                         eventType = result.event;
                         arr.add(result.value);
                     }
@@ -598,6 +639,11 @@ enum <xsl:value-of select="@name"/><xsl:text> {
                             <xsl:choose>
                                 <xsl:when test="@type">
                                 <xsl:choose>
+                                <xsl:when test="@type='string'">
+                   ESPUnserializeResultPair&lt;String&gt; result = unserializeString(Level, xpp);
+                   eventType = result.event;
+                   structobj.<xsl:value-of select="@name"/>=result.value;<xsl:text></xsl:text>
+                                </xsl:when>
                                 <xsl:when test="@type='binary'">
                    ESPUnserializeResultPair&lt;byte[]&gt; result = unserializeBinary(Level, xpp);
                    eventType = result.event;
@@ -669,7 +715,7 @@ enum <xsl:value-of select="@name"/><xsl:text> {
         int eventType = xpp.next();
 
         while (eventType != XmlPullParser.END_DOCUMENT &amp;&amp; Level[0] >= L) {
-            if (eventType == XmlPullParser.TEXT)
+            if (eventType == XmlPullParser.TEXT &amp;&amp; Level[0] == L)
             {
                 String valstr = xpp.getText();
                 if (valstr != null)
