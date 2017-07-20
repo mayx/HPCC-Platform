@@ -703,13 +703,6 @@ public:
             throw( MakeStringException(0, "A service name must be provided") );
         }
 
-        if (!optVersionStr.isEmpty())
-        {
-            optVersion = atof( optVersionStr.get() );
-            if( optVersion <= 0 )
-                throw MakeStringException( 0, "Version option must be followed by a real number > 0" );
-        }
-
         if (!optXsltPath.length())
         {
             StringBuffer binXsltPath;
@@ -738,8 +731,8 @@ public:
 
     virtual int processCMD()
     {
-        cmdHelper.loadDefinition(optSource, optService, optVersion);
-        Owned<IEsdlDefObjectIterator> structs = cmdHelper.esdlDef->getDependencies( optService, optMethod, ESDLOPTLIST_DELIMITER, optVersion, NULL, optFlags );
+        cmdHelper.loadDefinition(optSource, optService, 0);
+        Owned<IEsdlDefObjectIterator> structs = cmdHelper.esdlDef->getDependencies( optService, optMethod, ESDLOPTLIST_DELIMITER, 0, NULL, optFlags );
 
         if(!optPreprocessOutputDir.isEmpty())
         {
@@ -768,7 +761,6 @@ public:
     void printOptions()
     {
         puts("Options:");
-        puts("  --version <version number> : Constrain to interface version");
         puts("  --method <method name>[;<method name>]* : Constrain to list of specific method(s)" );
         puts("  --xslt <xslt file path> : Path to xslt files used to transform EsdlDef to Java code" );
         puts("  --preprocess-output <raw output directory> : Output pre-processed xml file to specified directory before applying XSLT transform" );
@@ -798,7 +790,7 @@ public:
         StringBuffer xml;
 
         xml.appendf( "<esxdl name='%s'>", optService.get());
-        cmdHelper.defHelper->toXML( obj, xml, optVersion, NULL, optFlags );
+        cmdHelper.defHelper->toXML( obj, xml, 0, NULL, optFlags );
         xml.append("</esxdl>");
         saveAsFile(optPreprocessOutputDir, NULL, xml, NULL );
     }
