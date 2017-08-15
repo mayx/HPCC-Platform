@@ -375,6 +375,7 @@ public:
 
     bool usesESDLDefinition(const char * name, int version);
     bool usesESDLDefinition(const char * id);
+    virtual bool isDynamicBinding() { return true; }
 
 private:
     int onGetRoxieBuilder(CHttpRequest* request, CHttpResponse* response, const char *serv, const char *method);
