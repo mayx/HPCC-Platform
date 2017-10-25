@@ -90,6 +90,23 @@ void CEspApplicationPort::appendBinding(CEspBindingEntry* entry, bool isdefault)
     }
 }
 
+void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
+{
+    for(int i = 0; i < bindingCount; i++)
+    {
+        if(!bindings[i])
+            continue;
+        IEspRpcBinding* b = bindings[i]->queryBinding();
+        if(b && b == binding)
+        {
+            bindings[i]->Release();
+            if(i != bindingCount-1)
+                bindings[i] = bindings[bindingCount-1];
+            bindingCount--;
+        }
+    }
+}
+
 const StringBuffer &CEspApplicationPort::getAppFrameHtml(time_t &modified, const char *inner, StringBuffer &html, IEspContext* ctx)
 {
     if (!xslp)
@@ -476,24 +493,28 @@ void CEspBinding::getNavigationData(IEspContext &context, IPropertyTree & data)
             if (context.getClientVersion()>0)
                 params.appendf("%cver_=%g", params.length()?'&':'?', context.getClientVersion());
         }
-
-        IPropertyTree *folder=createPTree("Folder");
-        folder->addProp("@name", serviceName.str());
-        folder->addProp("@info", serviceName.str());
-
         StringBuffer encodedparams;
         if (params.length())
             encodeUtf8XML(params.str(), encodedparams, 0);
-
-        folder->addProp("@urlParams", encodedparams);
-        if (showSchemaLinks())
-            folder->addProp("@showSchemaLinks", "true");
-
         if (params.length())
             params.setCharAt(0,'&'); //the entire params string will follow the initial param: "?form"
 
-        folder->addPropBool("@isDynamicBinding", isDynamicBinding());
+        VStringBuffer folderpath("Folder[@name='%s']", serviceName.str());
 
+        //Yanrui TODO: is it better to merge the methods of static and dynamic binding, or keep them separate and add an indicator?
+        // I personally think it's more clear with separate services, as the services could have different versions etc.
+        IPropertyTree *folder = data.queryPropTree(folderpath.str());
+        if(!folder)
+        {
+            folder=createPTree("Folder");
+            folder->addProp("@name", serviceName.str());
+            folder->addProp("@info", serviceName.str());
+            folder->addProp("@urlParams", encodedparams);
+            if (showSchemaLinks())
+            folder->addProp("@showSchemaLinks", "true");
+                folder->addPropBool("@isDynamicBinding", isDynamicBinding());
+            data.addPropTree("Folder", folder);
+        }
         MethodInfoArray methods;
         wsdl->getQualifiedNames(context, methods);
         ForEachItemIn(idx, methods)
@@ -508,8 +529,6 @@ void CEspBinding::getNavigationData(IEspContext &context, IPropertyTree & data)
 
             folder->addPropTree("Link", link);
         }
-
-        data.addPropTree("Folder", folder);
     }
 }
 
@@ -675,6 +694,18 @@ void CEspProtocol::addBindingMap(ISocket *sock, IEspRpcBinding* binding, bool is
 
         CApplicationPortMap::value_type vt(port, apport);
         m_portmap.insert(vt);
+    }
+}
+
+void CEspProtocol::removeBindingMap(int port, IEspRpcBinding* binding)
+{
+    //Yanrui TODO: remove from m_portmap, release socket, add critical section protection
+    CApplicationPortMap::iterator apport_it = m_portmap.find(port);
+
+    if (apport_it!=m_portmap.end())
+    {
+        CEspApplicationPort* apport = (*apport_it).second;
+        apport->removeBinding(binding);
     }
 }
 

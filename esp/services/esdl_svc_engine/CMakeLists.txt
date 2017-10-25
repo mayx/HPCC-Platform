@@ -25,6 +25,7 @@
 project( esdl_svc_engine )
 
 set (   SRCS
+        esdl_monitor.cpp
         esdl_binding.cpp
         esdl_svc_engine_plugin.cpp
         esdl_svc_engine.cpp

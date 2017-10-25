@@ -220,7 +220,18 @@ public:
         closeEnvironment();
     }
 
+    IPropertyTree* queryEnvpt()
+    {
+        return m_envpt.get();
+    }
 
+    IEspProtocol* queryProtocol(const char* name)
+    {
+        map<string, protocol_cfg*>::iterator pit = m_protocols.find(name);
+        if(pit != m_protocols.end())
+            return (*pit).second->prot;
+        return nullptr;
+    }
 };
 
 

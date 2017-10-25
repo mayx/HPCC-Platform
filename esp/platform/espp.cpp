@@ -236,6 +236,13 @@ static void usage()
     exit(1);
 }
 
+Owned<CEspServer> server;
+
+IEspServer* queryEspServer()
+{
+    return server.get();
+}
+
 int init_main(int argc, char* argv[])
 {
     InitModuleObjects();
@@ -279,7 +286,6 @@ int init_main(int argc, char* argv[])
     removeSentinelFile(sentinelFile);
 
     Owned<CEspConfig> config;
-    Owned<CEspServer> server;
     try
     {
         const char* cfgfile = NULL;

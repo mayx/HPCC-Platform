@@ -229,6 +229,23 @@ public:
         }
     }
 
+    virtual void removeBinding(unsigned short port, IEspRpcBinding & bind)
+    {
+        IEspProtocol* prot = dynamic_cast<IEspProtocol*>(bind.queryListener());
+        if(prot)
+            prot->removeBindingMap(port, &bind);
+    }
+
+    virtual IPropertyTree* queryEnvpt()
+    {
+        return m_config->queryEnvpt();
+    }
+
+    virtual IEspProtocol* queryProtocol(const char* name)
+    {
+        return m_config->queryProtocol(name);
+    }
+
 //ISocketHandler
     void start()
     {
@@ -298,7 +315,6 @@ public:
         return false;
     }
 };
-
 
 #define MAX_CHILDREN 1
 

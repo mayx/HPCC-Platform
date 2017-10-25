@@ -297,6 +297,7 @@ private:
     StringArray                             m_esdlDefinitions;
     StringAttr                              m_bindingName;
     StringAttr                              m_processName;
+    StringAttr                              m_bindingId;
     StringAttr                              m_espServiceName; //previously held the esdl service name, we are now
                                                               //supporting mismatched ESP Service name assigned to a different named ESDL service definition
     Owned<CESDLBindingSubscription>         m_pBindingSubscription;
@@ -326,7 +327,10 @@ public:
     EsdlBindingImpl();
     EsdlBindingImpl(IPropertyTree* cfg, const char *bindname=NULL, const char *procname=NULL);
 
-    virtual ~EsdlBindingImpl(){}
+    virtual ~EsdlBindingImpl()
+    {
+        DBGLOG("~EsdlBindingImpl()");
+    }
 
     virtual int onGet(CHttpRequest* request, CHttpResponse* response);
 
@@ -378,6 +382,9 @@ public:
     bool usesESDLDefinition(const char * name, int version);
     bool usesESDLDefinition(const char * id);
     virtual bool isDynamicBinding() const override { return true; }
+    bool reloadBindingFromDali(const char *binding, const char *process);
+    bool reloadBindingFromDali(const char* bindingId);
+    void clearBindingState();
 
 private:
     int onGetRoxieBuilder(CHttpRequest* request, CHttpResponse* response, const char *serv, const char *method);
@@ -385,7 +392,6 @@ private:
     bool getRoxieConfig(StringBuffer & queryName, StringBuffer & url, StringBuffer & username, StringBuffer & password, const char *method);
     void getSoapMessage(StringBuffer& out,StringBuffer& soapresp,const char * starttxt,const char * endtxt);
 
-    bool reloadBindingFromDali(const char *binding, const char *process);
     bool reloadDefinitionsFromDali(IPropertyTree * esdlBndCng, StringBuffer & loadedname);
     void saveDESDLState();
 };

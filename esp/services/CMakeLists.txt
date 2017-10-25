@@ -15,6 +15,7 @@
 ################################################################################
 HPCC_ADD_SUBDIRECTORY (common)
 HPCC_ADD_SUBDIRECTORY (ecldirect "PLATFORM")
+HPCC_ADD_SUBDIRECTORY (WsTest "PLATFORM")
 IF (USE_OPENLDAP)
     HPCC_ADD_SUBDIRECTORY (ws_access "PLATFORM")
 ENDIF(USE_OPENLDAP)

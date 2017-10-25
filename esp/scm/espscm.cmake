@@ -27,6 +27,7 @@ set ( ESPSCM_SRCS
       common.ecm
       ecl.ecm
       ecldirect.ecm
+      WsTest.ecm
       ecllib.ecm
       esp.ecm
       ws_access.ecm

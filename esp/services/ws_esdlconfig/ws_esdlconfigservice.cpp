@@ -271,7 +271,7 @@ void CWsESDLConfigEx::addESDLDefinition(IPropertyTree * queryRegistry, const cha
 
     if (deleteprev && newSeq > 1)
     {
-        if (!isESDLDefinitionBound(lcName, newSeq -1))
+        //if (!isESDLDefinitionBound(lcName, newSeq -1))  //TODO Yanrui : temporary change for testing purpose
         {
             newSeq--;
             xpath.appendf("[@seq='%d']", newSeq);
@@ -289,11 +289,11 @@ void CWsESDLConfigEx::addESDLDefinition(IPropertyTree * queryRegistry, const cha
                 return;
             }
         }
-        else
-        {
-            DBGLOG("Will not delete previous ESDL definition version because it is referenced in an ESDL binding.");
-            return;
-        }
+        //else
+        //{
+        //    DBGLOG("Will not delete previous ESDL definition version because it is referenced in an ESDL binding.");
+        //    return;
+        //}
     }
 
     CDateTime dt;

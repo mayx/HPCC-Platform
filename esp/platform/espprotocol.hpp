@@ -120,6 +120,7 @@ public:
 
     int getBindingCount(){return bindingCount;}
     void appendBinding(CEspBindingEntry* entry, bool isdefault);
+    void removeBinding(IEspRpcBinding* binding);
 
     bool rootAuthRequired(){return rootAuth;}
 
@@ -180,6 +181,7 @@ public:
     virtual const char * getProtocolName();
 
     virtual void addBindingMap(ISocket *sock, IEspRpcBinding* binding, bool isdefault);
+    virtual void removeBindingMap(int port, IEspRpcBinding* binding);
     virtual CEspApplicationPort* queryApplicationPort(int handle);
 
     virtual void setMaxRequestEntityLength(int len) {m_MaxRequestEntityLength = len;};

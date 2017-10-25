@@ -246,7 +246,7 @@ int CEspHttpServer::processRequest()
     {
         
         EspHttpBinding* thebinding=NULL;
-        
+
         StringBuffer method;
         m_request->getMethod(method);
 
@@ -361,9 +361,11 @@ int CEspHttpServer::processRequest()
         {
             int ordinality=m_apport->getBindingCount();
             bool isSubService = false;
+            EspHttpBinding* exactBinding = NULL;
+            bool exactIsSubService = false;
             if (ordinality>0)
             {
-                if (ordinality==1)
+                if(ordinality==1)
                 {
                     CEspBindingEntry *entry = m_apport->queryBindingItem(0);
                     thebinding = (entry) ? dynamic_cast<EspHttpBinding*>(entry->queryBinding()) : NULL;
@@ -374,21 +376,36 @@ int CEspHttpServer::processRequest()
                 else
                 {
                     EspHttpBinding* lbind=NULL;
-                    for(int index=0; !thebinding && index<ordinality; index++)
+                    for(int index=0; !exactBinding && index<ordinality; index++)
                     {
                         CEspBindingEntry *entry = m_apport->queryBindingItem(index);
                         lbind = (entry) ? dynamic_cast<EspHttpBinding*>(entry->queryBinding()) : NULL;
                         if (lbind)
                         {
-                            if (!thebinding && lbind->isValidServiceName(*ctx, serviceName.str()))
+                            if (lbind->isValidServiceName(*ctx, serviceName.str()))
                             {
-                                thebinding=lbind;
-                                StringBuffer bindSvcName;
-                                if (stricmp(serviceName, lbind->getServiceName(bindSvcName)))
-                                    isSubService = true;
+                                if(!thebinding)
+                                {
+                                    thebinding=lbind;
+                                    StringBuffer bindSvcName;
+                                    if (stricmp(serviceName, lbind->getServiceName(bindSvcName)))
+                                        isSubService = true;
+                                }
+                                if(methodName.length() > 0 && lbind->isMethodInService(*ctx, serviceName.str(), methodName.str()))
+                                {
+                                    exactBinding = lbind;
+                                    StringBuffer bindSvcName;
+                                    if (stricmp(serviceName, lbind->getServiceName(bindSvcName)))
+                                        exactIsSubService = true;
+                                }
                             }                           
                         }
                     }
+                }
+                if(exactBinding)
+                {
+                    thebinding = exactBinding;
+                    isSubService = exactIsSubService;
                 }
                 if (!thebinding && m_defaultBinding)
                     thebinding=dynamic_cast<EspHttpBinding*>(m_defaultBinding.get());

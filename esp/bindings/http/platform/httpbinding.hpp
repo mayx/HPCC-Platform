@@ -151,7 +151,7 @@ protected:
 
 public:
     EspHttpBinding(IPropertyTree* cfg, const char *bindname=NULL, const char *procname=NULL);
-
+    virtual ~EspHttpBinding() {}
     void getDefaultNavData(IPropertyTree & data);
 
 
@@ -289,6 +289,7 @@ public:
         }
         return false;
     }
+    bool isMethodInService(IEspContext& context, const char *servname, const char *methname);
     ISecManager* querySecManager() {return m_secmgr.get(); }
 
     static void escapeSingleQuote(StringBuffer& src, StringBuffer& escaped);

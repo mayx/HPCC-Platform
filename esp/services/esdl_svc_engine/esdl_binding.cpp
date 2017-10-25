@@ -35,6 +35,7 @@
 #include "wuwebview.hpp"
 #include "build-config.h"
 #include "jsmartsock.ipp"
+#include "esdl_monitor.hpp"
 
 #include "loggingagentbase.hpp"
 
@@ -150,6 +151,49 @@ IPropertyTree * fetchESDLBindingFromDali(const char *process, const char *bindin
     return NULL;
 }
 
+IPropertyTree * fetchESDLBindingFromDali(const char *bindingId)
+{
+    Owned<IRemoteConnection> conn;
+    try
+    {
+        VStringBuffer xpath("/ESDL/Bindings/Binding[@id='%s']", bindingId);
+        conn.set(querySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL));
+        if (!conn)
+        {
+            DBGLOG("Unable to connect to ESDL Service binding information in dali for %s", xpath.str());
+            return NULL;
+        }
+
+        conn->close(false); //release lock right away
+
+        DBGLOG("ESDL Binding: Fetching ESDL Binding from Dali %s", xpath.str());
+
+        IPropertyTree *esdlBinding = conn->queryRoot();
+        if (!esdlBinding)
+        {
+            DBGLOG("Unable to open ESDL Service binding information in dali %s", xpath.str());
+            return NULL;
+        }
+        else
+            return createPTreeFromIPT(conn->queryRoot());
+
+    }
+    catch (IException *E)
+    {
+        VStringBuffer message("ESDL Binding: Error fetching ESDL Binding %s from Dali.", bindingId);
+        EXCLOG(E, message);
+        E->Release();
+    }
+    catch(...)
+    {
+        DBGLOG("ESDL Binding: Unknown error encountered while fetching ESDL Binding %s from Dali", bindingId);
+        if (conn)
+            conn->close(false); //release lock right away
+
+    }
+    return NULL;
+}
+
 IPropertyTree * fetchESDLBindingFromStateFile(const char *process, const char *bindingName, const char * stateFileName)
 {
     try
@@ -218,7 +262,7 @@ void clearState(const char * stateFileFullPath)
 /* if the target ESDL binding contains an ESDL service definition matching this espServiceName, load it.
  * Otherwise, load the first definition available, and report it via the loadedServiceName
  */
-bool loadDefinitions(const char * espServiceName, IEsdlDefinition * esdl, IPropertyTree * config, StringBuffer & loadedServiceName, const char * stateFileName)
+bool loadDefinitions(const char * espServiceName, Owned<IEsdlDefinition>& esdl, IPropertyTree * config, StringBuffer & loadedServiceName, const char * stateFileName, bool forceReload = false)
 {
     if (!esdl || !config)
         return false;
@@ -232,6 +276,14 @@ bool loadDefinitions(const char * espServiceName, IEsdlDefinition * esdl, IPrope
         try
         {
             const char * id = esdlDefinitionConfig->queryProp("@id");
+            IEsdlCache* esdlcache = queryEsdlCache();
+            StringBuffer cached_sig;
+            IEsdlDefinition* cached_def = esdlcache->queryDef(id, cached_sig, loadedServiceName);
+            if(cached_def && !forceReload)
+            {
+                esdl.set(cached_def);
+                return true;
+            }
             Owned<IPropertyTree> esdlDefintion = fetchESDLDefinitionFromDaliById(id);
             if (!esdlDefintion)
             {
@@ -250,6 +302,13 @@ bool loadDefinitions(const char * espServiceName, IEsdlDefinition * esdl, IPrope
             StringBuffer esdlXML;
             toXML(esdlDefintion, esdlXML,0,0);
 
+            StringBuffer sigbuf;
+            md5_string(esdlXML, sigbuf); //double check if this is sufficient
+            if(cached_def && strcmp(sigbuf.str(), cached_sig.str()) == 0)
+            {
+                esdl.set(cached_def);
+                return true;
+            }
 #ifdef _DEBUG
             DBGLOG("\nESDL Definition to be loaded:\n%s", esdlXML.str());
 #endif
@@ -280,6 +339,8 @@ bool loadDefinitions(const char * espServiceName, IEsdlDefinition * esdl, IPrope
                     DBGLOG("Error saving DESDL state file for ESP service %s", espServiceName);
                 }
             }
+
+            esdlcache->add(id, sigbuf.str(), esdlXML.str(), loadedServiceName.str(), esdl.get(), NULL);
         }
         catch (IException * e)
         {
@@ -1075,6 +1136,7 @@ void EsdlServiceImpl::getTargetResponseFile(IEspContext & context,
 
 EsdlServiceImpl::~EsdlServiceImpl()
 {
+    DBGLOG("~EsdlServiceImpl()");
 }
 
 EsdlBindingImpl::EsdlBindingImpl()
@@ -1083,8 +1145,12 @@ EsdlBindingImpl::EsdlBindingImpl()
 
 EsdlBindingImpl::EsdlBindingImpl(IPropertyTree* cfg, const char *binding,  const char *process) : CHttpSoapBinding(cfg, binding, process)
 {
+    initEsdlMonitor();
+
     m_bindingName.set(binding);
     m_processName.set(process);
+    VStringBuffer bindingId("%s.%s", process, binding);
+    m_bindingId.set(bindingId);
 
     try
     {
@@ -1112,17 +1178,24 @@ EsdlBindingImpl::EsdlBindingImpl(IPropertyTree* cfg, const char *binding,  const
 
         if (!m_esdlBndCfg.get())
             DBGLOG("ESDL Binding: Could not fetch ESDL binding %s for ESP Process %s", binding, process);
-
+#ifdef _DEBUG
+        if(m_esdlBndCfg.get())
+        {
+            StringBuffer cfgtext;
+            toXML(m_esdlBndCfg.get(), cfgtext);
+            DBGLOG("ESDL binding configuration:\n%s", cfgtext.str());
+        }
+#endif
         //Subscribe to Dali anyway
-        DBGLOG("ESDL Binding %s is subscribing to all /ESDL/Bindings/Binding dali changes", binding);
+        //DBGLOG("ESDL Binding %s is subscribing to all /ESDL/Bindings/Binding dali changes", binding);
         //Since it seems we cannot subscribe to a specific /ESDL/Bindings/Binding, all bindings have to subscribe to the /ESDL/Bindings branch
-        m_pBindingSubscription.clear();
-        m_pBindingSubscription.setown( new CESDLBindingSubscription(this));
+        //m_pBindingSubscription.clear();
+        //m_pBindingSubscription.setown( new CESDLBindingSubscription(this));
 
-        DBGLOG("ESDL Binding %s is subscribing to all /ESDL/Bindings/Definition dali changes", binding);
+        //DBGLOG("ESDL Binding %s is subscribing to all /ESDL/Bindings/Definition dali changes", binding);
         //Since it seems we cannot subscribe to a specific /ESDL/Definitions/Definition, all bindings have to subscribe to the /ESDL/Definitions branch
-        m_pDefinitionSubscription.clear();
-        m_pDefinitionSubscription.setown( new CESDLDefinitionSubscription(this));
+        //m_pDefinitionSubscription.clear();
+        //m_pDefinitionSubscription.setown( new CESDLDefinitionSubscription(this));
 
         StringBuffer xpath;
         xpath.appendf("Software/EspProcess[@name=\"%s\"]/EspBinding[@name=\"%s\"]", process, binding);
@@ -1180,9 +1253,11 @@ bool EsdlBindingImpl::reloadDefinitionsFromDali(IPropertyTree * esdlBndCng, Stri
     {
         Owned<IEsdlDefinition> tempESDLDef = createNewEsdlDefinition();
 
-        if(!loadDefinitions(m_espServiceName.get(), tempESDLDef.get(), esdlBndCng, loadedname, m_esdlStateFilesLocation.str()))
+        if(!loadDefinitions(m_espServiceName.get(), tempESDLDef, esdlBndCng, loadedname, m_esdlStateFilesLocation.str(), true))
+        {
+            DBGLOG("Failed to reload ESDL definitions");
             return false;
-
+        }
         DBGLOG("Definitions reloaded, will update ESDL definition object");
         CriticalBlock b(configurationLoadCritSec);
 
@@ -1248,6 +1323,63 @@ bool EsdlBindingImpl::reloadBindingFromDali(const char *binding, const char *pro
     return true;
 }
 
+bool EsdlBindingImpl::reloadBindingFromDali(const char* bindingId)
+{
+    if (strcmp(m_bindingId.get(), bindingId)==0)
+    {
+        try
+        {
+            DBGLOG("Reloading binding %s...", bindingId);
+            if ( m_pESDLService)
+            {
+                Owned<IPropertyTree> tempEsdlBndCfg;
+                DBGLOG("Fetching ESDL binding information from dali based on ESP binding (%s)", bindingId);
+                tempEsdlBndCfg.set(fetchESDLBindingFromDali(bindingId));
+
+                if (!tempEsdlBndCfg.get())
+                {
+                    clearDESDLState();
+                    clearState(m_esdlStateFilesLocation.str());
+                    return false;
+                }
+
+                StringBuffer loadedname;
+                if (!reloadDefinitionsFromDali(tempEsdlBndCfg.get(), loadedname))
+                    return false;
+
+                IEsdlDefService *srvdef = m_esdl->queryService(loadedname);
+
+                if (srvdef)
+                    initEsdlServiceInfo(*srvdef);
+
+                m_pESDLService->m_espServiceType.set(loadedname);
+                m_pESDLService->configureTargets(tempEsdlBndCfg, loadedname);
+                m_esdlBndCfg.set(tempEsdlBndCfg.getClear());
+            }
+            else
+                DBGLOG("Could not reload binding %s because service implementation object not available.", bindingId);
+
+        }
+        catch(IException* e)
+        {
+           StringBuffer msg;
+           e->errorMessage(msg);
+           DBGLOG("Exception caught in EsdlBindingImpl::EsdlBindingImpl: %s", msg.str());
+        }
+        catch (...)
+        {
+            DBGLOG("Exception caught in EsdlBindingImpl::EsdlBindingImpl: Could Not load Binding %s information from Dali!", bindingId);
+        }
+    }
+    return true;
+}
+
+void EsdlBindingImpl::clearBindingState()
+{
+    clearDESDLState();
+    clearState(m_esdlStateFilesLocation.str());
+}
+
 void EsdlBindingImpl::addService(const char * name,
                                  const char * host,
                                  unsigned short port,
@@ -1268,8 +1400,11 @@ void EsdlBindingImpl::addService(const char * name,
         {
             if (m_esdl)
             {
+                IEsdlMonitor* monitor = queryEsdlMonitor();
+                monitor->registerBinding(m_bindingId.get(), this); //TODO: is here the best place to register the binding?
+
                 StringBuffer loadedservicename;
-                if(!loadDefinitions(name, m_esdl.get(), m_esdlBndCfg, loadedservicename, m_esdlStateFilesLocation.str()))
+                if(!loadDefinitions(name, m_esdl, m_esdlBndCfg, loadedservicename, m_esdlStateFilesLocation.str()))
                 {
                     DBGLOG("ESDL Binding: Error adding ESP service '%s': Could not fetch ESDL definition", name);
                     return;
