@@ -114,6 +114,7 @@ bool CEspHttpServer::rootAuth(IEspContext* ctx)
     EspHttpBinding* thebinding=getBinding();
     if (thebinding)
     {
+        Owned<IInterface> theBindingHolder = dynamic_cast<IInterface*>(thebinding);
         thebinding->populateRequest(m_request.get());
         if(!thebinding->authRequired(m_request.get()) || thebinding->doAuth(ctx))
             ret=true;
@@ -244,8 +245,10 @@ int CEspHttpServer::processRequest()
 
     try
     {
-        
-        EspHttpBinding* thebinding=NULL;
+        //Yanrui TODO: how do we guarantee the binding won't be released before thebinding is identified and theBindingHolder is set?
+        //             appportmap need careful consideration for thread safety.
+        EspHttpBinding* thebinding = NULL;
+        Owned<IInterface> theBindingHolder;
 
         StringBuffer method;
         m_request->getMethod(method);
@@ -275,6 +278,8 @@ int CEspHttpServer::processRequest()
             if (m_apport->rootAuthRequired() && (!ctx->queryUserId() || !*ctx->queryUserId()))
             {
                 thebinding = dynamic_cast<EspHttpBinding*>(m_defaultBinding.get());
+                theBindingHolder.set(dynamic_cast<IInterface*>(m_defaultBinding.get()));
+
                 StringBuffer realmbuf;
                 if(thebinding)
                 {   
@@ -351,6 +356,7 @@ int CEspHttpServer::processRequest()
         else if (strieq(method.str(), POST_METHOD) && strieq(serviceName.str(), "esp") && (methodName.length() > 0) && strieq(methodName.str(), "updatepassword"))
         {
             EspHttpBinding* thebinding = getBinding();
+            theBindingHolder.set(dynamic_cast<IInterface*>(thebinding));
             if (thebinding)
                 thebinding->populateRequest(m_request.get());
             return onUpdatePassword(m_request.get(), m_response.get());
@@ -372,6 +378,9 @@ int CEspHttpServer::processRequest()
 
                     if (thebinding && !isSoapPost && !thebinding->isValidServiceName(*ctx, serviceName.str()))
                         thebinding=NULL;
+
+                    if(thebinding)
+                        theBindingHolder.set(dynamic_cast<IInterface*>(thebinding));
                 }
                 else
                 {
@@ -411,6 +420,8 @@ int CEspHttpServer::processRequest()
                     thebinding=dynamic_cast<EspHttpBinding*>(m_defaultBinding.get());
                 if (thebinding)
                 {
+                    theBindingHolder.set(dynamic_cast<IInterface*>(thebinding));
+
                     StringBuffer servName(ctx->queryServiceName(NULL));
                     if (!servName.length())
                     {

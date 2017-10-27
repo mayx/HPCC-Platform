@@ -232,7 +232,6 @@ private:
 
         void notify(SubscriptionId id, const char *xpath, SDSNotifyFlags flags, unsigned valueLen=0, const void *valueData=NULL)
         {
-
             if (id != sub_id)
             {
                 DBGLOG("Dali subscription (%" I64F "d) received notification for unrecognized dali subscription id: (%" I64F "d)", (__int64) sub_id, (__int64) id);
@@ -329,7 +328,7 @@ private:
                     // - Dali notification issue
                     // - Load pure dynamic bindings at start up (where is the best place to do this?)
                     // - Need to think about how to identify the binding, bindingId, port or both.
-                    // - Make sure binidng and service destructors are called, make sure sockets and ports are re-collected when there's no more bings on the port
+                    // - [X] Make sure binding and service destructors are called, make sure sockets and ports are re-collected when there's no more bindings on the port
                     // - Examine critical sections usage
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
@@ -339,7 +338,7 @@ private:
                     Owned<EsdlBindingImpl> esdlbinding = new CEsdlSvcEngineSoapBindingEx(envpt,  targetName.str(), espProcess.str());
                     Owned<EsdlServiceImpl> esdlservice = new CEsdlSvcEngine();
                     esdlservice->init(envpt, espProcess.str(), serviceName.str());
-                    int port = 8043;
+                    int port = 8043; //Yanrui TODO: do we need to define a well-known/default port?
                     if(portStr.length() > 0)
                         port = atoi(portStr.str());
                     esdlbinding->addService(esdlservice->getServiceType(), nullptr, port, *esdlservice.get());

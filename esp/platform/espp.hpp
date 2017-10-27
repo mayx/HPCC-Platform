@@ -233,7 +233,22 @@ public:
     {
         IEspProtocol* prot = dynamic_cast<IEspProtocol*>(bind.queryListener());
         if(prot)
+        {
             prot->removeBindingMap(port, &bind);
+            //Yanrui TODO: are there any other things to clean up?
+            if(prot->countBindings(port) == 0)
+            {
+                DBGLOG("No more bindings on port %d, so freeing up the port.",port);
+                ISocket **socketp = m_srvSockets.getValue(port);
+                ISocket *socket=(socketp!=NULL) ? *socketp : NULL;
+                if(socket != NULL)
+                {
+                    remove(socket);
+                    m_srvSockets.remove(port);
+                    socket->close();
+                }
+            }
+        }
     }
 
     virtual IPropertyTree* queryEnvpt()

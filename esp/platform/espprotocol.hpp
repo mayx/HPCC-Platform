@@ -126,6 +126,7 @@ public:
 
     CEspBindingEntry* queryBindingItem(int item){return (item<bindingCount) ? bindings[item] : NULL;}
     CEspBindingEntry* getDefaultBinding(){return bindings[(defBinding>=0) ? defBinding : 0];}
+    int countBindings() { return bindingCount; }
 #ifdef _USE_OPENLDAP
     unsigned updatePassword(IEspContext &context, IHttpMessage* request, StringBuffer& message);
     void onUpdatePasswordInput(IEspContext &context, StringBuffer &html);
@@ -187,6 +188,8 @@ public:
     virtual void setMaxRequestEntityLength(int len) {m_MaxRequestEntityLength = len;};
     virtual int getMaxRequestEntityLength() { return m_MaxRequestEntityLength; }
     virtual void setContainer(IEspContainer* container) { m_container = container; }
+
+    virtual int countBindings(int port);
 };
 
 #endif

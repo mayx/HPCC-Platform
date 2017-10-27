@@ -100,8 +100,12 @@ void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
         if(b && b == binding)
         {
             bindings[i]->Release();
+            bindings[i] = nullptr;
             if(i != bindingCount-1)
+            {
                 bindings[i] = bindings[bindingCount-1];
+                bindings[bindingCount-1] = nullptr;
+            }
             bindingCount--;
         }
     }
@@ -713,4 +717,13 @@ CEspApplicationPort* CEspProtocol::queryApplicationPort(int port)
 {
     CApplicationPortMap::iterator apport_it = m_portmap.find(port);
     return (apport_it != m_portmap.end()) ? (*apport_it).second : NULL;
+}
+
+int CEspProtocol::countBindings(int port)
+{
+    CEspApplicationPort* apport = queryApplicationPort(port);
+    if(!apport)
+        return 0;
+    else
+        return apport->countBindings();
 }

@@ -228,6 +228,7 @@ SCMinterface IEspProtocol(IInterface)
    void clearBindingMap();
    void init(IPropertyTree *cfg, const char *process, const char *protocol);
    void setContainer(IEspContainer *container);
+   int countBindings(int port);
 };
 
 
