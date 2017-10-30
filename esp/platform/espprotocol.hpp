@@ -132,6 +132,27 @@ public:
     void onUpdatePasswordInput(IEspContext &context, StringBuffer &html);
     void onUpdatePassword(IEspContext &context, IHttpMessage* request, StringBuffer& html);
 #endif
+private:
+    class CDelayedBindingRemover: public Thread
+    {
+        Owned<CEspBindingEntry> mEntryHolder;
+    protected:
+        int run()
+        {
+            Link();
+            MilliSleep(5000); // This is only for the short period between when an esp thread is created and when the binding is identified and
+                              // linked inside the thread, so 5 seconds should be more than enough.
+            Release();
+            return 0;
+        }
+
+    public:
+        IMPLEMENT_IINTERFACE;
+        CDelayedBindingRemover(CEspBindingEntry* bindingEntry)
+        {
+            mEntryHolder.setown(bindingEntry);
+        }
+    };
 };
 
 typedef map<int, CEspApplicationPort*> CApplicationPortMap;

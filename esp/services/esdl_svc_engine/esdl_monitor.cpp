@@ -322,8 +322,8 @@ private:
                     // - [X] Better way to instantiate binding and service. Is PropertyTree config required? If yes, what's best way to create this tree,
                     //   in an efficient and re-usable way?
                     // - [X] Change reloading bindings to re-creating and replacing, to guarantee completion of requests in flight.
-                    // - Best way to implement the ability to hold binding and service for requests in flight. Holding a reference count in
-                    //   the threads might be sufficient?
+                    // - [X] Best way to implement the ability to hold binding and service for requests in flight. Holding a reference count in
+                    //   the threads might be sufficient? --- Reference count increments in request threads, plus delayed release.
                     // - [X] Need to add removeBinding method to IEspServer/CEspServer
                     // - Dali notification issue
                     // - Load pure dynamic bindings at start up (where is the best place to do this?)

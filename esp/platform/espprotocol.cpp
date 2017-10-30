@@ -99,7 +99,8 @@ void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
         IEspRpcBinding* b = bindings[i]->queryBinding();
         if(b && b == binding)
         {
-            bindings[i]->Release();
+            Owned<CDelayedBindingRemover> remover = new CDelayedBindingRemover(bindings[i]);
+            remover->start();
             bindings[i] = nullptr;
             if(i != bindingCount-1)
             {
