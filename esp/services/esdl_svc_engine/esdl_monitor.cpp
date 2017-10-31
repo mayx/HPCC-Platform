@@ -190,7 +190,7 @@ private:
             try
             {
                 //<Change type="Binding" action="add" targetId="DESDLBinding2"/>
-                sub_id = querySDS().subscribe("/ESDL/Changes/Change", *this, false, true);
+                sub_id = querySDS().subscribe("/ESDL/Subscription/Change", *this, false, true);
                 //Questions: 1 - What does parameters sub and "sendValue" mean? When set both sub and sendValue to true it stops working
                 //           2 - Will multiple subscribers all get notified for the same change?
                 //           3 - notification comes back as /ESDL[1]/Changes[1]/Change[1]. Then have to query this path from dali to find the new value.
@@ -239,10 +239,16 @@ private:
             }
 
             StringBuffer parentElementXPath;
-            //path is reported with sibbling number annotation ie /ESDL[1]/Changes[1]/Change[1]/...
-            DBGLOG("ESDL change reported to path %s - flags = %d, valueLen=%d", xpath, flags, valueLen);
-            if(!trimXPathToParentSDSElement("Change[", xpath, parentElementXPath))
+            DBGLOG("ESDL change reported to path %s - flags = %d, valueLen = %d valueData=%s", xpath, flags, valueLen, valueData?(const char*)valueData:"");
+
+            if(valueLen == 0)
+            {
+                DBGLOG("There's no data from notify, ignore.");
                 return;
+            }
+
+            Owned<IProperties> props = createProperties(false);
+            parseChangeString((const char*)valueData, *props.get());
 
             //<Change action="add" type="binding" espProcess="myesp" targetName="DESDLBinding2" targetId="myesp.DESDLBinding2" protocol="http" port="8004"/>
             StringBuffer changeType;
@@ -252,33 +258,26 @@ private:
             StringBuffer targetName;
             StringBuffer protocol;
             StringBuffer portStr;
-            Owned<IPropertyTree> myEntry;
+            changeType.set(props->queryProp("type"));
+            changeAction.set(props->queryProp("action"));
+            targetId.set(props->queryProp("targetId"));
+            espProcess.set(props->queryProp("espProcess"));
+            targetName.set(props->queryProp("targetName"));
+            protocol.set(props->queryProp("protocol"));
+            portStr.set(props->queryProp("port"));
+            if (targetId.length() == 0)
             {
-                Owned<IRemoteConnection> conn = querySDS().connect(parentElementXPath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
-                if (conn)
-                {
-                    IPropertyTree * entry = conn->queryRoot();
-                    if (!entry)
-                        return;
-
-                    myEntry.setown(createPTreeFromIPT(entry));
-                    conn->close(false); //release lock right away
-
-                    changeType.set(myEntry->queryProp("@type"));
-                    changeAction.set(myEntry->queryProp("@action"));
-                    targetId.set(myEntry->queryProp("@targetId"));
-                    espProcess.set(myEntry->queryProp("@espProcess"));
-                    targetName.set(myEntry->queryProp("@targetName"));
-                    protocol.set(myEntry->queryProp("@protocol"));
-                    portStr.set(myEntry->queryProp("@port"));
-                    if (targetId.length() == 0)
-                    {
-                        DBGLOG("targetId is empty, ignore this change notification.");
-                        return;
-                    }
-                }
+                DBGLOG("targetId is empty, ignore this change notification.");
+                return;
+            }
+            if (portStr.length() == 0)
+            {
+                DBGLOG("port is not provided, ignore this change notification.");
+                return;
             }
 
+            DBGLOG("Port = %s", portStr.str());
+            int port = atoi(portStr.str());
             EsdlBindingImpl* theBinding = NULL;
             if(changeType.length() > 0 && strcmp(changeType.str(), "definition") == 0)
             {
@@ -294,7 +293,7 @@ private:
                         DBGLOG("Requesting clearing of binding %s", targetId.str());
                         //CriticalBlock b(daliSubscriptionCritSec);
                         //theBinding->clearBindingState();
-                        queryEspServer()->removeBinding(atoi(portStr.str()), *theBinding);
+                        queryEspServer()->removeBinding(port, *theBinding);
                         m_theMonitor->removeBindingFromMap(targetId.str());
                     }
                     else
@@ -325,22 +324,20 @@ private:
                     // - [X] Best way to implement the ability to hold binding and service for requests in flight. Holding a reference count in
                     //   the threads might be sufficient? --- Reference count increments in request threads, plus delayed release.
                     // - [X] Need to add removeBinding method to IEspServer/CEspServer
-                    // - Dali notification issue
+                    // - [X] Dali notification issue
                     // - Load pure dynamic bindings at start up (where is the best place to do this?)
                     // - Need to think about how to identify the binding, bindingId, port or both.
                     // - [X] Make sure binding and service destructors are called, make sure sockets and ports are re-collected when there's no more bindings on the port
                     // - Examine critical sections usage
+                    // - Should not allow adding 2 bindings with the same id.
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
-                    Owned<IPropertyTree> envpt = getEnvpt(myEntry.get(), serviceName);
+                    Owned<IPropertyTree> envpt = getEnvpt(props.get(), serviceName);
                     IEspServer* server = queryEspServer();
                     IEspProtocol* espProtocol = server->queryProtocol(protocol);
                     Owned<EsdlBindingImpl> esdlbinding = new CEsdlSvcEngineSoapBindingEx(envpt,  targetName.str(), espProcess.str());
                     Owned<EsdlServiceImpl> esdlservice = new CEsdlSvcEngine();
                     esdlservice->init(envpt, espProcess.str(), serviceName.str());
-                    int port = 8043; //Yanrui TODO: do we need to define a well-known/default port?
-                    if(portStr.length() > 0)
-                        port = atoi(portStr.str());
                     esdlbinding->addService(esdlservice->getServiceType(), nullptr, port, *esdlservice.get());
                     esdlbinding->addProtocol(protocol, *espProtocol);
                     server->addBinding(targetName.str(), nullptr, port, *espProtocol, *esdlbinding.get(), false, envpt);
@@ -354,6 +351,7 @@ private:
                 }
             }
         }
+private:
         //Yanrui TODO: need to take care of all available attributes!
         void constructEnvptHeader()
         {
@@ -379,20 +377,20 @@ private:
             mEnvptHeader.append(">");
         }
 
-        IPropertyTree* getEnvpt(IPropertyTree* changeEntry, StringBuffer& serviceName)
+        IPropertyTree* getEnvpt(IProperties* changeEntry, StringBuffer& serviceName)
         {
             IPropertyTree* envpt = queryEspServer()->queryEnvpt();
             if(envpt)
             {
                 VStringBuffer xpath("Software/EspProcess[name='%s']/EspBinding[name='%s']",
-                        changeEntry->queryProp("@espProcess"), changeEntry->queryProp("@targetName"));
+                        changeEntry->queryProp("espProcess"), changeEntry->queryProp("targetName"));
                 if(envpt->queryProp(xpath.str()))
                     return LINK(envpt);
             }
             StringBuffer name, port, protocol;
-            encodeXML(changeEntry->queryProp("@targetName"), name);
-            encodeXML(changeEntry->queryProp("@port"), port);
-            encodeXML(changeEntry->queryProp("@protocol"), protocol);
+            encodeXML(changeEntry->queryProp("targetName"), name);
+            encodeXML(changeEntry->queryProp("port"), port);
+            encodeXML(changeEntry->queryProp("protocol"), protocol);
             StringBuffer envxmlbuf;
             envxmlbuf.appendf("%s<EspBinding defaultForPort=\"true\""
                     " defaultServiceVersion=\"\""
@@ -421,6 +419,14 @@ private:
             DBGLOG("Constructed configuration: \n------\n%s\n-------\n", envxmlbuf.str());
             serviceName.set(name);
             return createPTreeFromXMLString(envxmlbuf.str());
+        }
+        void parseChangeString(const char* changeStr, IProperties& props)
+        {
+            if(!changeStr || !*changeStr)
+                return;
+            StringBuffer buf(changeStr);
+            buf.replace(';', '\n');
+            props.loadProps(buf.str());
         }
     };
 
