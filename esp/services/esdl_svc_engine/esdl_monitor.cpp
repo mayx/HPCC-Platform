@@ -114,19 +114,25 @@ private:
     Owned<CESDLChangeSubscription>      m_pChangeSubscription;
     MapStringTo<EsdlBindingImpl*> m_esdlBindingMap;
     CriticalSection m_CritSect;
+    StringBuffer mEnvptHeader;
 
 public:
     IMPLEMENT_IINTERFACE;
 
     CEsdlMonitor()
     {
+        constructEnvptHeader();
         m_esdlCache.setown(new CEsdlCache());
         //m_pBindingSubscription.setown(new CESDLBindingSubscription(this));
         //m_pDefinitionSubscription.setown(new CESDLDefinitionSubscription(this));
-        loadDynamicBindings();
-        m_pChangeSubscription.setown(new CESDLChangeSubscription(this));
         DBGLOG("EsdlMonitor started.");
     }
+
+    void setupSubscription()
+    {
+        m_pChangeSubscription.setown(new CESDLChangeSubscription(this));
+    }
+
     virtual IEsdlCache* queryEsdlCache() { return m_esdlCache.get(); }
 
     //Reference count increment is done by the function
@@ -172,13 +178,74 @@ public:
         return m_CritSect;
     }
 
+    void loadDynamicBindings()
+    {
+        Owned<IRemoteConnection> conn = querySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
+        if (!conn)
+           throw MakeStringException(-1, "Unable to connect to ESDL bindings information in dali '%s'", ESDL_BINDINGS_ROOT_PATH);
+
+        conn->close(false); //release lock right away
+
+        IPropertyTree * esdlBindings = conn->queryRoot();
+        if (!esdlBindings)
+           throw MakeStringException(-1, "Unable to open ESDL bindings information in dali '%s'", ESDL_BINDINGS_ROOT_PATH);
+
+        Owned<IPropertyTreeIterator> iter = conn->queryRoot()->getElements("Binding");
+        ForEach(*iter)
+        {
+            IPropertyTree & cur = iter->query();
+            bool hasEspBinding = false;
+            StringBuffer bindingId, bindingName, procName, portStr;
+            cur.getProp("@id", bindingId);
+            cur.getProp("@espbinding", bindingName);
+            cur.getProp("@espprocess", procName);
+            cur.getProp("@port", portStr);
+            if(portStr.length() == 0)
+            {
+                DBGLOG("ESDL binding %s doesn't have port specified, skip", bindingId.str());
+                continue;
+            }
+            if(bindingName.length() > 0 && procName.length() > 0)
+            {
+                DBGLOG("ESDL Binding %s has properties espprocess=%s espbinding=%s", bindingId.str(), procName.str(), bindingName.str());
+                StringBuffer xpath;
+                xpath.appendf("/Environment/Software/EspProcess[@name=\"%s\"]/EspBinding[@name=\"%s\"]", procName.str(), bindingName.str());
+                Owned<IRemoteConnection> conn1 = querySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
+                if (conn1)
+                    hasEspBinding = true;
+            }
+
+            if(hasEspBinding)
+            {
+                DBGLOG("ESDL binding %s has Esp Binding configured, so don't need to create it dynamically, skip.", bindingId.str());
+                continue;
+            }
+
+            StringBuffer serviceName;
+            Owned<IPropertyTree> envpt = getEnvpt(&cur, serviceName);
+            IEspServer* server = queryEspServer();
+            const char* protocol = cur.queryProp("@protocol");
+            if(!protocol || !*protocol)
+                protocol = "http";
+            IEspProtocol* espProtocol = server->queryProtocol(protocol);
+            Owned<EsdlBindingImpl> esdlbinding = new CEsdlSvcEngineSoapBindingEx(envpt,  bindingName.str(), procName.str());
+            registerBinding(bindingId.str(), esdlbinding.get());
+            Owned<EsdlServiceImpl> esdlservice = new CEsdlSvcEngine();
+            esdlservice->init(envpt, procName.str(), serviceName.str());
+            int port = atoi(portStr.str());
+            esdlbinding->addService(esdlservice->getServiceType(), nullptr, port, *esdlservice.get());
+            esdlbinding->addProtocol(protocol, *espProtocol);
+            server->addBinding(bindingName.str(), nullptr, port, *espProtocol, *esdlbinding.get(), false, envpt);
+            DBGLOG("Successfully instantiated new DESDL binding %s and service %s", bindingName.str(), serviceName.str());
+        }
+    }
+
 private:
     class CESDLChangeSubscription : public CInterface, implements ISDSSubscription
     {
     private:
         SubscriptionId sub_id;
         CEsdlMonitor* m_theMonitor;
-        StringBuffer mEnvptHeader;
     public:
         IMPLEMENT_IINTERFACE;
 
@@ -187,7 +254,6 @@ private:
         // - When add a binding, still reports as "SDSNotify_Deleted"? Acutally seems to be getting "changed" update
         CESDLChangeSubscription(CEsdlMonitor* theMonitor) : m_theMonitor(theMonitor)
         {
-            constructEnvptHeader();
             CriticalBlock b(m_theMonitor->queryCritSect());
             try
             {
@@ -333,9 +399,10 @@ private:
                     // - [X?] Examine critical sections usage
                     // - [X] Should not allow adding 2 bindings with the same id.
                     // - ESDL Monitor really should be ESP monitor. There's no reason why non-DESDL services and bindings can not be loaded dynamically. (feature for 8.0 maybe?)
+                    // - Need to change ws_esdlconfig to publish binding when there's no static binding
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
-                    Owned<IPropertyTree> envpt = getEnvpt(props.get(), serviceName);
+                    Owned<IPropertyTree> envpt = m_theMonitor->getEnvpt(props.get(), serviceName);
                     IEspServer* server = queryEspServer();
                     IEspProtocol* espProtocol = server->queryProtocol(protocol);
                     Owned<EsdlBindingImpl> esdlbinding = new CEsdlSvcEngineSoapBindingEx(envpt,  targetName.str(), espProcess.str());
@@ -357,74 +424,6 @@ private:
             }
         }
 private:
-        //Yanrui TODO: need to take care of all available attributes!
-        void constructEnvptHeader()
-        {
-            mEnvptHeader.clear().append("<Environment><Software><EspProcess ");
-            IPropertyTree* envpt = queryEspServer()->queryEnvpt();
-            if(envpt)
-            {
-                //Yanrui TODO: don't think there could be more than 1 Esp Process within 1 esp config file, right?
-                IPropertyTree* espprocpt = envpt->queryPropTree("Software/EspProcess");
-                if(espprocpt)
-                {
-                    Owned<IAttributeIterator> attrs = espprocpt->getAttributes(false);
-                    for(attrs->first(); attrs->isValid(); attrs->next())
-                    {
-                        StringBuffer name(attrs->queryName());
-                        StringBuffer value;
-                        encodeXML(attrs->queryValue(), value);
-                        if(name.length() > 1)
-                            mEnvptHeader.appendf("%s=\"%s\" ", name.str()+1, value.str());
-                    }
-                }
-            }
-            mEnvptHeader.append(">");
-        }
-
-        IPropertyTree* getEnvpt(IProperties* changeEntry, StringBuffer& serviceName)
-        {
-            IPropertyTree* envpt = queryEspServer()->queryEnvpt();
-            if(envpt)
-            {
-                VStringBuffer xpath("Software/EspProcess[name='%s']/EspBinding[name='%s']",
-                        changeEntry->queryProp("espProcess"), changeEntry->queryProp("targetName"));
-                if(envpt->queryProp(xpath.str()))
-                    return LINK(envpt);
-            }
-            StringBuffer name, port, protocol;
-            encodeXML(changeEntry->queryProp("targetName"), name);
-            encodeXML(changeEntry->queryProp("port"), port);
-            encodeXML(changeEntry->queryProp("protocol"), protocol);
-            StringBuffer envxmlbuf;
-            envxmlbuf.appendf("%s<EspBinding defaultForPort=\"true\""
-                    " defaultServiceVersion=\"\""
-                    " name=\"%s\""
-                    " port=\"%s\""
-                    " protocol=\"%s\""
-                    " resourcesBasedn=\"ou=EspServices,ou=ecl\""
-                    " service=\"%s\"/>\n"
-                    " <EspService build=\"_\""
-                    " buildSet=\"DynamicESDL\""
-                    " description=\"My ESDL Based Web Service Interface\""
-                    " LoggingManager=\"\""
-                    " name=\"%s\""
-                    " type=\"%s\""
-                    " namespaceBase=\"urn:hpccsystems:ws\">"
-                    " <Properties bindingType=\"EsdlBinding\""
-                    " defaultPort=\"8043\""
-                    "  defaultResourcesBasedn=\"ou=EspServices,ou=ecl\""
-                    "  defaultSecurePort=\"18043\""
-                    "  plugin=\"esdl_svc_engine\""
-                    "  type=\"DynamicESDL\"/>"
-                    " </EspService>\n"
-                    "</EspProcess></Software></Environment>",
-                    mEnvptHeader.str(), name.str(), port.str(), protocol.str(), name.str(), name.str(), name.str());
-            //envxmlbuf.loadFile("/home/mayx/git/ecrun/opt/HPCCSystems/examples/EsdlExampleYanrui/esp.xml", false);
-            DBGLOG("Constructed configuration: \n------\n%s\n-------\n", envxmlbuf.str());
-            serviceName.set(name);
-            return createPTreeFromXMLString(envxmlbuf.str());
-        }
         void parseChangeString(int len, const char* changeStr, IProperties& props)
         {
             if(len == 0 || !changeStr || !*changeStr)
@@ -662,49 +661,6 @@ private:
 
     };
 
-    void loadDynamicBindings()
-    {
-        Owned<IRemoteConnection> conn = querySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
-        if (!conn)
-           throw MakeStringException(-1, "Unable to connect to ESDL bindings information in dali '%s'", ESDL_BINDINGS_ROOT_PATH);
-
-        conn->close(false); //release lock right away
-
-        IPropertyTree * esdlBindings = conn->queryRoot();
-        if (!esdlBindings)
-           throw MakeStringException(-1, "Unable to open ESDL bindings information in dali '%s'", ESDL_BINDINGS_ROOT_PATH);
-
-        Owned<IPropertyTreeIterator> iter = conn->queryRoot()->getElements("Binding");
-        ForEach(*iter)
-        {
-            IPropertyTree & cur = iter->query();
-            bool hasEspBinding = false;
-            StringBuffer bindingId, bindingName, procName;
-            cur.getProp("@id", bindingId);
-            cur.getProp("@espbinding", bindingName);
-            cur.getProp("@espprocess", procName);
-            if(bindingName.length() > 0 && procName.length() > 0)
-            {
-                DBGLOG("ESDL Binding %s has properties espprocess=%s espbinding=%s", bindingId.str(), procName.str(), bindingName.str());
-                StringBuffer xpath;
-                xpath.appendf("/Environment/Software/EspProcess[@name=\"%s\"]/EspBinding[@name=\"%s\"]", procName.str(), bindingName.str());
-                Owned<IRemoteConnection> conn1 = querySDS().connect(xpath.str(), myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
-                if (conn1)
-                    hasEspBinding = true;
-
-            }
-            else
-                DBGLOG("ESDL Binding %s doesn't have espprocess and espbinding properties", bindingId.str());
-
-            if(!hasEspBinding)
-            {
-                DBGLOG("ESDL binding %s doesn't have Esp Binding configured.", bindingId.str());
-            }
-            else
-                DBGLOG("ESDL binding %s has Esp Binding configured, so don't instantiate in the monitor.", bindingId.str());
-        }
-    }
-
     void findDeletedBindings(StringArray& bindingIds)
     {
         Owned<IRemoteConnection> conn = querySDS().connect(ESDL_BINDINGS_ROOT_PATH, myProcessSession(), RTM_LOCK_READ, SDS_LOCK_TIMEOUT_DESDL);
@@ -727,7 +683,106 @@ private:
                 bindingIds.append(id);
         }
     }
+    //Yanrui TODO: need to take care of all available attributes!
+    void constructEnvptHeader()
+    {
+        mEnvptHeader.clear().append("<Environment><Software><EspProcess ");
+        IPropertyTree* envpt = queryEspServer()->queryEnvpt();
+        if(envpt)
+        {
+            //Yanrui TODO: don't think there could be more than 1 Esp Process within 1 esp config file, right?
+            IPropertyTree* espprocpt = envpt->queryPropTree("Software/EspProcess");
+            if(espprocpt)
+            {
+                Owned<IAttributeIterator> attrs = espprocpt->getAttributes(false);
+                for(attrs->first(); attrs->isValid(); attrs->next())
+                {
+                    StringBuffer name(attrs->queryName());
+                    StringBuffer value;
+                    encodeXML(attrs->queryValue(), value);
+                    if(name.length() > 1)
+                        mEnvptHeader.appendf("%s=\"%s\" ", name.str()+1, value.str());
+                }
+            }
+        }
+        mEnvptHeader.append(">");
+    }
 
+    IPropertyTree* getEnvpt(IProperties* changeEntry, StringBuffer& serviceName)
+    {
+        return getEnvpt(changeEntry->queryProp("espProcess"), changeEntry->queryProp("targetName"), changeEntry->queryProp("protocol"),
+                changeEntry->queryProp("port"), serviceName);
+    }
+
+    /* Sample binding:
+    <Binding created="2017-09-29T19:05:50"
+              espbinding="DESDLBinding2"
+              espprocess="myesp"
+              id="myesp.DESDLBinding2"
+              port="8004"
+              publishedBy="Anonymous">
+      <Definition esdlservice="EsdlExample" id="esdlexample.1" name="esdlexample">
+       <Methods>
+        <Method javamethod="EsdlExample.EsdlExampleService.JavaEchoPersonInfo" name="JavaEchoPersonInfo"
+     querytype="java"/>
+        <Method name="RoxieEchoPersonInfo"
+                queryname="RoxieEchoPersonInfo"
+                querytype="roxie"
+                url="http://localhost:9876/roxie"/>
+       </Methods>
+      </Definition>
+     </Binding>
+    */
+    IPropertyTree* getEnvpt(IPropertyTree* changeEntry, StringBuffer& serviceName)
+    {
+        return getEnvpt(changeEntry->queryProp("@espprocess"), changeEntry->queryProp("@espbinding"), changeEntry->queryProp("@protocol"),
+                changeEntry->queryProp("@port"), serviceName);
+    }
+
+    IPropertyTree* getEnvpt(const char* espProcess, const char* bindingName, const char* protocol, const char* port, StringBuffer& serviceName)
+    {
+        if(!protocol || !*protocol)
+        {
+            DBGLOG("Protocol not specified for binding %s, use http as default.", bindingName);
+            protocol = "http";
+        }
+        IPropertyTree* envpt = queryEspServer()->queryEnvpt();
+        if(envpt)
+        {
+            VStringBuffer xpath("Software/EspProcess[name='%s']/EspBinding[name='%s']",
+                    espProcess, bindingName);
+            if(envpt->queryProp(xpath.str()))
+                return LINK(envpt);
+        }
+        serviceName.appendf("ServiceFor%s", bindingName);
+        StringBuffer envxmlbuf;
+        envxmlbuf.appendf("%s<EspBinding defaultForPort=\"true\""
+                " defaultServiceVersion=\"\""
+                " name=\"%s\""
+                " port=\"%s\""
+                " protocol=\"%s\""
+                " resourcesBasedn=\"ou=EspServices,ou=ecl\""
+                " service=\"%s\"/>\n"
+                " <EspService build=\"_\""
+                " buildSet=\"DynamicESDL\""
+                " description=\"My ESDL Based Web Service Interface\""
+                " LoggingManager=\"\""
+                " name=\"%s\""
+                " type=\"%s\""
+                " namespaceBase=\"urn:hpccsystems:ws\">"
+                " <Properties bindingType=\"EsdlBinding\""
+                " defaultPort=\"8043\""
+                "  defaultResourcesBasedn=\"ou=EspServices,ou=ecl\""
+                "  defaultSecurePort=\"18043\""
+                "  plugin=\"esdl_svc_engine\""
+                "  type=\"DynamicESDL\"/>"
+                " </EspService>\n"
+                "</EspProcess></Software></Environment>",
+                mEnvptHeader.str(), bindingName, port, protocol, bindingName, serviceName.str(), serviceName.str());
+        //envxmlbuf.loadFile("/home/mayx/git/ecrun/opt/HPCCSystems/examples/EsdlExampleYanrui/esp.xml", false);
+        DBGLOG("Constructed configuration: \n------\n%s\n-------\n", envxmlbuf.str());
+        return createPTreeFromXMLString(envxmlbuf.str());
+    }
 };
 
 static Owned<IEsdlMonitor> gEsdlMonitor;
@@ -738,8 +793,11 @@ esdl_decl void initEsdlMonitor()
     CriticalBlock cb(gEsdlMonitorCritSection);
     if(gEsdlMonitor.get() == nullptr)
     {
-        gEsdlMonitor.setown(new CEsdlMonitor());
+        CEsdlMonitor* monitor = new CEsdlMonitor();
+        gEsdlMonitor.setown(monitor);
         isEsdlMonitorInitted = true;
+        monitor->loadDynamicBindings();
+        monitor->setupSubscription();
     }
 }
 
