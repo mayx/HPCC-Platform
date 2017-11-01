@@ -490,6 +490,27 @@ void CEspConfig::loadProtocols()
     }
 }
 
+void CEspConfig::loadEsdlMonitor()
+{
+    init_esdl_monitor_t xproc = NULL;
+    Owned<IEspPlugin> pplg = getPlugin("esdl_svc_engine");
+    if (pplg)
+    {
+        DBGLOG("Plugin esdl_svc_engine loaded.");
+        xproc = (init_esdl_monitor_t) pplg->getProcAddress("initEsdlMonitor");
+    }
+    else
+        throw MakeStringException(-1, "Plugin esdl_svc_engine can't be loaded");
+
+    if (xproc)
+    {
+        DBGLOG("Procedure initEsdlMonitor loaded, now calling it...");
+        xproc();
+    }
+    else
+        throw MakeStringException(-1, "procedure initEsdlMonitor can't be loaded");
+}
+
 void CEspConfig::loadBindings()
 {
     list<binding_cfg*>::iterator iter = m_bindings.begin();

@@ -169,13 +169,15 @@ public:
     void loadProtocols();
     void loadServices();
     void loadBindings();
+    void loadEsdlMonitor();
 
     void loadAll()
     {
         DBGLOG("loadServices");
         loadServices();
         loadProtocols();
-        loadBindings();      
+        loadBindings();
+        loadEsdlMonitor();
     }
 
     IEspPlugin* getPlugin(const char* name);

@@ -37,7 +37,7 @@ interface IEsdlCacheHook : implements IInterface
     virtual void esdlDefChanged(const char* defId, IEsdlDefinition* def, IEsdlTransformer* transformer) = 0;
 };
 
-esdl_decl void initEsdlMonitor();
+extern "C" esdl_decl void initEsdlMonitor();
 esdl_decl IEsdlMonitor* queryEsdlMonitor();
 esdl_decl IEsdlCache* queryEsdlCache();
 

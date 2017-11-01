@@ -235,7 +235,8 @@ public:
             int port = atoi(portStr.str());
             esdlbinding->addService(esdlservice->getServiceType(), nullptr, port, *esdlservice.get());
             esdlbinding->addProtocol(protocol, *espProtocol);
-            server->addBinding(bindingName.str(), nullptr, port, *espProtocol, *esdlbinding.get(), false, envpt);
+            //Yanrui TODO: check if getLink is needed. Also investigate shutdown core
+            server->addBinding(bindingName.str(), nullptr, port, *espProtocol, *esdlbinding, false, envpt);
             DBGLOG("Successfully instantiated new DESDL binding %s and service %s", bindingName.str(), serviceName.str());
         }
     }
@@ -399,7 +400,8 @@ private:
                     // - [X?] Examine critical sections usage
                     // - [X] Should not allow adding 2 bindings with the same id.
                     // - ESDL Monitor really should be ESP monitor. There's no reason why non-DESDL services and bindings can not be loaded dynamically. (feature for 8.0 maybe?)
-                    // - Need to change ws_esdlconfig to publish binding when there's no static binding
+                    // - Need to change ws_esdlconfig to publish binding when there's no static binding. Add attributes like protocol
+                    // - Shutdown memory usage and core
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
                     Owned<IPropertyTree> envpt = m_theMonitor->getEnvpt(props.get(), serviceName);
@@ -788,7 +790,7 @@ private:
 static Owned<IEsdlMonitor> gEsdlMonitor;
 static bool isEsdlMonitorInitted = false;
 
-esdl_decl void initEsdlMonitor()
+extern "C" esdl_decl void initEsdlMonitor()
 {
     CriticalBlock cb(gEsdlMonitorCritSection);
     if(gEsdlMonitor.get() == nullptr)

@@ -28,7 +28,7 @@
 typedef IEspService * (*esp_service_factory_t)(const char *name,  const char* type, IPropertyTree* cfg, const char *process);
 typedef IEspRpcBinding * (*esp_binding_factory_t)(const char *name,  const char* type, IPropertyTree* cfg, const char *process);
 typedef IEspProtocol * (*esp_protocol_factory_t)(const char *name,  const char* type, IPropertyTree* cfg, const char *process);
-
+typedef void (*init_esdl_monitor_t)();
 
 extern "C" {
 
