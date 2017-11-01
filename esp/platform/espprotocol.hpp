@@ -99,6 +99,7 @@ class CEspApplicationPort
 
     HINSTANCE hxsl;
     Owned<IXslProcessor> xslp;
+    ReadWriteLock rwLock;
 public:
     CEspApplicationPort(bool viewcfg);
 
@@ -124,7 +125,11 @@ public:
 
     bool rootAuthRequired(){return rootAuth;}
 
-    CEspBindingEntry* queryBindingItem(int item){return (item<bindingCount) ? bindings[item] : NULL;}
+    CEspBindingEntry* queryBindingItem(int item)
+    {
+        ReadLockBlock rblock(rwLock);
+        return (item<bindingCount) ? bindings[item] : NULL;
+    }
     CEspBindingEntry* getDefaultBinding(){return bindings[(defBinding>=0) ? defBinding : 0];}
     int countBindings() { return bindingCount; }
 #ifdef _USE_OPENLDAP

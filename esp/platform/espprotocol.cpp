@@ -68,6 +68,7 @@ CEspApplicationPort::CEspApplicationPort(bool viewcfg) : bindingCount(0), defBin
 
 void CEspApplicationPort::appendBinding(CEspBindingEntry* entry, bool isdefault)
 {
+    WriteLockBlock wblock(rwLock);
     bindings[bindingCount]=entry;
     if (isdefault)
         defBinding=bindingCount;
@@ -92,6 +93,7 @@ void CEspApplicationPort::appendBinding(CEspBindingEntry* entry, bool isdefault)
 
 void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
 {
+    WriteLockBlock wblock(rwLock);
     for(int i = 0; i < bindingCount; i++)
     {
         if(!bindings[i])
@@ -204,10 +206,12 @@ const StringBuffer &CEspApplicationPort::getNavBarContent(IEspContext &context, 
     if (xslp)
     {
         Owned<IPropertyTree> navtree=createPTree("EspNavigationData");
-        int count = getBindingCount();
-        for (int idx = 0; idx<count; idx++)
-            bindings[idx]->queryBinding()->getNavigationData(context, *navtree.get());
-
+        {
+            ReadLockBlock rblock(rwLock);
+            int count = getBindingCount();
+            for (int idx = 0; idx<count; idx++)
+                bindings[idx]->queryBinding()->getNavigationData(context, *navtree.get());
+        }
         StringBuffer xml;
         buildNavTreeXML(navtree.get(), xml);
         if (rawxml)
@@ -247,10 +251,12 @@ const StringBuffer &CEspApplicationPort::getDynNavData(IEspContext &context, IPr
 {
     Owned<IPropertyTree> navtree=createPTree("EspDynNavData");
     bVolatile = false;
-    int count = getBindingCount();
-    for (int idx = 0; idx<count; idx++)
-        bindings[idx]->queryBinding()->getDynNavData(context, params, *navtree.get());
-
+    {
+        ReadLockBlock rblock(rwLock);
+        int count = getBindingCount();
+        for (int idx = 0; idx<count; idx++)
+            bindings[idx]->queryBinding()->getDynNavData(context, params, *navtree.get());
+    }
     if (!bVolatile)
         bVolatile = navtree->getPropBool("@volatile", false);
     contentType.clear().append(HTTP_TYPE_APPLICATION_XML_UTF8);
@@ -260,6 +266,7 @@ const StringBuffer &CEspApplicationPort::getDynNavData(IEspContext &context, IPr
 int CEspApplicationPort::onGetNavEvent(IEspContext &context, IHttpMessage* request, IHttpMessage* response)
 {
     int handled=0;
+    ReadLockBlock rblock(rwLock);
     int count = getBindingCount();
     for (int idx = 0; !handled && idx<count; idx++)
     {
@@ -274,6 +281,7 @@ int CEspApplicationPort::onBuildSoapRequest(IEspContext &context, IHttpMessage* 
     CHttpResponse *response=dynamic_cast<CHttpResponse*>(iresp);
 
     int handled=0;
+    ReadLockBlock rblock(rwLock);
     int count = getBindingCount();
     for (int idx = 0; !handled && idx<count; idx++)
     {

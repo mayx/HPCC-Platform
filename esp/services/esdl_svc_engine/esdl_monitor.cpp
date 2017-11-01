@@ -109,11 +109,11 @@ private:
     class CESDLDefinitionSubscription;
     class CESDLChangeSubscription;
     Owned<CEsdlCache> m_esdlCache;
-    Owned<CESDLBindingSubscription>         m_pBindingSubscription;
-    Owned<CESDLDefinitionSubscription>      m_pDefinitionSubscription;
+    //Owned<CESDLBindingSubscription>         m_pBindingSubscription;
+    //Owned<CESDLDefinitionSubscription>      m_pDefinitionSubscription;
     Owned<CESDLChangeSubscription>      m_pChangeSubscription;
     MapStringTo<EsdlBindingImpl*> m_esdlBindingMap;
-    CriticalSection m_bindingMapCritSect;
+    CriticalSection m_CritSect;
 
 public:
     IMPLEMENT_IINTERFACE;
@@ -123,8 +123,8 @@ public:
         m_esdlCache.setown(new CEsdlCache());
         //m_pBindingSubscription.setown(new CESDLBindingSubscription(this));
         //m_pDefinitionSubscription.setown(new CESDLDefinitionSubscription(this));
-        m_pChangeSubscription.setown(new CESDLChangeSubscription(this));
         loadDynamicBindings();
+        m_pChangeSubscription.setown(new CESDLChangeSubscription(this));
         DBGLOG("EsdlMonitor started.");
     }
     virtual IEsdlCache* queryEsdlCache() { return m_esdlCache.get(); }
@@ -138,7 +138,7 @@ public:
         if(esdlbinding)
         {
             //TODO: is critcal section needed here?
-            CriticalBlock cb(m_bindingMapCritSect);
+            CriticalBlock cb(m_CritSect);
             m_esdlBindingMap.setValue(bindingId, esdlbinding);
         }
     }
@@ -147,7 +147,6 @@ public:
     {
         if(!bindingId)
             return nullptr;
-        CriticalBlock cb(m_bindingMapCritSect);
         EsdlBindingImpl** ptrptr = m_esdlBindingMap.getValue(bindingId);
         if(ptrptr)
             return *ptrptr;
@@ -159,7 +158,7 @@ public:
     {
         if(!bindingId)
             return;
-        CriticalBlock cb(m_bindingMapCritSect);
+        CriticalBlock cb(m_CritSect);
         m_esdlBindingMap.remove(bindingId);
     }
 
@@ -168,12 +167,15 @@ public:
         return m_esdlBindingMap;
     }
 
+    CriticalSection& queryCritSect()
+    {
+        return m_CritSect;
+    }
 
 private:
     class CESDLChangeSubscription : public CInterface, implements ISDSSubscription
     {
     private:
-        CriticalSection daliSubscriptionCritSec;
         SubscriptionId sub_id;
         CEsdlMonitor* m_theMonitor;
         StringBuffer mEnvptHeader;
@@ -186,7 +188,7 @@ private:
         CESDLChangeSubscription(CEsdlMonitor* theMonitor) : m_theMonitor(theMonitor)
         {
             constructEnvptHeader();
-            CriticalBlock b(daliSubscriptionCritSec);
+            CriticalBlock b(m_theMonitor->queryCritSect());
             try
             {
                 //<Change type="Binding" action="add" targetId="DESDLBinding2"/>
@@ -214,7 +216,7 @@ private:
 
         void unsubscribe()
         {
-            CriticalBlock b(daliSubscriptionCritSec);
+            CriticalBlock b(m_theMonitor->queryCritSect());
             try
             {
                 if (sub_id)
@@ -248,7 +250,7 @@ private:
             }
 
             Owned<IProperties> props = createProperties(false);
-            parseChangeString((const char*)valueData, *props.get());
+            parseChangeString(valueLen, (const char*)valueData, *props.get());
 
             //<Change action="add" type="binding" espProcess="myesp" targetName="DESDLBinding2" targetId="myesp.DESDLBinding2" protocol="http" port="8004"/>
             StringBuffer changeType;
@@ -287,12 +289,11 @@ private:
             {
                 if(changeAction.length() > 0 && strcmp(changeAction.str(), "delete") == 0)
                 {
+                    CriticalBlock cb(m_theMonitor->queryCritSect());
                     theBinding = m_theMonitor->queryBinding(targetId.str());
                     if(theBinding)
                     {
                         DBGLOG("Requesting clearing of binding %s", targetId.str());
-                        //CriticalBlock b(daliSubscriptionCritSec);
-                        //theBinding->clearBindingState();
                         queryEspServer()->removeBinding(port, *theBinding);
                         m_theMonitor->removeBindingFromMap(targetId.str());
                     }
@@ -305,6 +306,7 @@ private:
                     if(changeAction.length() > 0 && strcmp(changeAction.str(), "add") == 0)
                         isAdd = true;
 
+                    CriticalBlock cb(m_theMonitor->queryCritSect());
                     theBinding = m_theMonitor->queryBinding(targetId.str());
                     if(theBinding != NULL && isAdd)
                     {
@@ -328,14 +330,17 @@ private:
                     // - Load pure dynamic bindings at start up (where is the best place to do this?)
                     // - Need to think about how to identify the binding, bindingId, port or both.
                     // - [X] Make sure binding and service destructors are called, make sure sockets and ports are re-collected when there's no more bindings on the port
-                    // - Examine critical sections usage
-                    // - Should not allow adding 2 bindings with the same id.
+                    // - [X?] Examine critical sections usage
+                    // - [X] Should not allow adding 2 bindings with the same id.
+                    // - ESDL Monitor really should be ESP monitor. There's no reason why non-DESDL services and bindings can not be loaded dynamically. (feature for 8.0 maybe?)
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
                     Owned<IPropertyTree> envpt = getEnvpt(props.get(), serviceName);
                     IEspServer* server = queryEspServer();
                     IEspProtocol* espProtocol = server->queryProtocol(protocol);
                     Owned<EsdlBindingImpl> esdlbinding = new CEsdlSvcEngineSoapBindingEx(envpt,  targetName.str(), espProcess.str());
+                    if(isAdd)
+                        m_theMonitor->registerBinding(targetId.str(), esdlbinding.get());
                     Owned<EsdlServiceImpl> esdlservice = new CEsdlSvcEngine();
                     esdlservice->init(envpt, espProcess.str(), serviceName.str());
                     esdlbinding->addService(esdlservice->getServiceType(), nullptr, port, *esdlservice.get());
@@ -420,11 +425,11 @@ private:
             serviceName.set(name);
             return createPTreeFromXMLString(envxmlbuf.str());
         }
-        void parseChangeString(const char* changeStr, IProperties& props)
+        void parseChangeString(int len, const char* changeStr, IProperties& props)
         {
-            if(!changeStr || !*changeStr)
+            if(len == 0 || !changeStr || !*changeStr)
                 return;
-            StringBuffer buf(changeStr);
+            StringBuffer buf(len, changeStr);
             buf.replace(';', '\n');
             props.loadProps(buf.str());
         }
