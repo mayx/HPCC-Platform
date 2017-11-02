@@ -128,6 +128,11 @@ public:
         DBGLOG("EsdlMonitor started.");
     }
 
+    virtual ~CEsdlMonitor()
+    {
+        m_pChangeSubscription->unsubscribe();
+    }
+
     void setupSubscription()
     {
         m_pChangeSubscription.setown(new CESDLChangeSubscription(this));
@@ -278,7 +283,7 @@ private:
 
         virtual ~CESDLChangeSubscription()
         {
-            unsubscribe();
+            //unsubscribe();
         }
 
         void unsubscribe()
@@ -401,7 +406,7 @@ private:
                     // - [X] Should not allow adding 2 bindings with the same id.
                     // - ESDL Monitor really should be ESP monitor. There's no reason why non-DESDL services and bindings can not be loaded dynamically. (feature for 8.0 maybe?)
                     // - Need to change ws_esdlconfig to publish binding when there's no static binding. Add attributes like protocol
-                    // - Shutdown memory usage and core
+                    // - [X?] Shutdown memory usage and core
                     DBGLOG("Creating new binding %s", targetId.str());
                     StringBuffer serviceName;
                     Owned<IPropertyTree> envpt = m_theMonitor->getEnvpt(props.get(), serviceName);
