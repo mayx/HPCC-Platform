@@ -68,6 +68,7 @@ CEspApplicationPort::CEspApplicationPort(bool viewcfg) : bindingCount(0), defBin
 
 void CEspApplicationPort::appendBinding(CEspBindingEntry* entry, bool isdefault)
 {
+    WriteLockBlock wblock(rwLock);
     bindings[bindingCount]=entry;
     if (isdefault)
         defBinding=bindingCount;
@@ -87,6 +88,29 @@ void CEspApplicationPort::appendBinding(CEspBindingEntry* entry, bool isdefault)
             navResize=resizable;
         if (!navScroll)
             navScroll=scroll;
+    }
+}
+
+void CEspApplicationPort::removeBinding(IEspRpcBinding* binding)
+{
+    WriteLockBlock wblock(rwLock);
+    for(int i = 0; i < bindingCount; i++)
+    {
+        if(!bindings[i])
+            continue;
+        IEspRpcBinding* b = bindings[i]->queryBinding();
+        if(b && b == binding)
+        {
+            Owned<CDelayedBindingRemover> remover = new CDelayedBindingRemover(bindings[i]);
+            remover->start();
+            bindings[i] = nullptr;
+            if(i != bindingCount-1)
+            {
+                bindings[i] = bindings[bindingCount-1];
+                bindings[bindingCount-1] = nullptr;
+            }
+            bindingCount--;
+        }
     }
 }
 
@@ -184,9 +208,12 @@ const StringBuffer &CEspApplicationPort::getNavBarContent(IEspContext &context, 
     if (xslp)
     {
         Owned<IPropertyTree> navtree=createPTree("EspNavigationData");
-        int count = getBindingCount();
-        for (int idx = 0; idx<count; idx++)
-            bindings[idx]->queryBinding()->getNavigationData(context, *navtree.get());
+        {
+            ReadLockBlock rblock(rwLock);
+            int count = getBindingCount();
+            for (int idx = 0; idx<count; idx++)
+                bindings[idx]->queryBinding()->getNavigationData(context, *navtree.get());
+        }
 
         StringBuffer xml;
         buildNavTreeXML(navtree.get(), xml);
@@ -227,9 +254,12 @@ const StringBuffer &CEspApplicationPort::getDynNavData(IEspContext &context, IPr
 {
     Owned<IPropertyTree> navtree=createPTree("EspDynNavData");
     bVolatile = false;
-    int count = getBindingCount();
-    for (int idx = 0; idx<count; idx++)
-        bindings[idx]->queryBinding()->getDynNavData(context, params, *navtree.get());
+    {
+        ReadLockBlock rblock(rwLock);
+        int count = getBindingCount();
+        for (int idx = 0; idx<count; idx++)
+            bindings[idx]->queryBinding()->getDynNavData(context, params, *navtree.get());
+    }
 
     if (!bVolatile)
         bVolatile = navtree->getPropBool("@volatile", false);
@@ -240,6 +270,7 @@ const StringBuffer &CEspApplicationPort::getDynNavData(IEspContext &context, IPr
 int CEspApplicationPort::onGetNavEvent(IEspContext &context, IHttpMessage* request, IHttpMessage* response)
 {
     int handled=0;
+    ReadLockBlock rblock(rwLock);
     int count = getBindingCount();
     for (int idx = 0; !handled && idx<count; idx++)
     {
@@ -254,6 +285,7 @@ int CEspApplicationPort::onBuildSoapRequest(IEspContext &context, IHttpMessage* 
     CHttpResponse *response=dynamic_cast<CHttpResponse*>(iresp);
 
     int handled=0;
+    ReadLockBlock rblock(rwLock);
     int count = getBindingCount();
     for (int idx = 0; !handled && idx<count; idx++)
     {
@@ -479,22 +511,30 @@ void CEspBinding::getNavigationData(IEspContext &context, IPropertyTree & data)
                 params.appendf("%cver_=%g", params.length()?'&':'?', context.getClientVersion());
         }
 
-        IPropertyTree *folder=createPTree("Folder");
-        folder->addProp("@name", serviceName.str());
-        folder->addProp("@info", serviceName.str());
-
         StringBuffer encodedparams;
         if (params.length())
             encodeUtf8XML(params.str(), encodedparams, 0);
 
-        folder->addProp("@urlParams", encodedparams);
-        if (showSchemaLinks())
-            folder->addProp("@showSchemaLinks", "true");
-
         if (params.length())
             params.setCharAt(0,'&'); //the entire params string will follow the initial param: "?form"
 
-        folder->addPropBool("@isDynamicBinding", isDynamicBinding());
+        VStringBuffer folderpath("Folder[@name='%s']", serviceName.str());
+
+        //Yanrui TODO: is it better to merge the methods of static and dynamic binding, or keep them separate and add an indicator?
+        // I personally think it's more clear with separate services, as the services could have different versions etc.
+        IPropertyTree *folder = data.queryPropTree(folderpath.str());
+        if(!folder)
+        {
+            folder=createPTree("Folder");
+            folder->addProp("@name", serviceName.str());
+            folder->addProp("@info", serviceName.str());
+            folder->addProp("@urlParams", encodedparams);
+            if (showSchemaLinks())
+                folder->addProp("@showSchemaLinks", "true");
+            folder->addPropBool("@isDynamicBinding", isDynamicBinding());
+            folder->addPropBool("@isBound", isBound());
+            data.addPropTree("Folder", folder);
+        }
 
         MethodInfoArray methods;
         wsdl->getQualifiedNames(context, methods);
@@ -510,8 +550,6 @@ void CEspBinding::getNavigationData(IEspContext &context, IPropertyTree & data)
 
             folder->addPropTree("Link", link);
         }
-
-        data.addPropTree("Folder", folder);
     }
 }
 
@@ -675,4 +713,25 @@ CEspApplicationPort* CEspProtocol::queryApplicationPort(int port)
 {
     CApplicationPortMap::iterator apport_it = m_portmap.find(port);
     return (apport_it != m_portmap.end()) ? (*apport_it).second : NULL;
+}
+
+void CEspProtocol::removeBindingMap(int port, IEspRpcBinding* binding)
+{
+    //Yanrui TODO: remove from m_portmap, release socket, add critical section protection
+    CApplicationPortMap::iterator apport_it = m_portmap.find(port);
+
+    if (apport_it!=m_portmap.end())
+    {
+        CEspApplicationPort* apport = (*apport_it).second;
+        apport->removeBinding(binding);
+    }
+}
+
+int CEspProtocol::countBindings(int port)
+{
+    CEspApplicationPort* apport = queryApplicationPort(port);
+    if(!apport)
+        return 0;
+    else
+        return apport->countBindings();
 }

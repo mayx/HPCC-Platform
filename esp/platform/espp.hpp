@@ -229,6 +229,48 @@ public:
         }
     }
 
+    virtual void removeBinding(unsigned short port, IEspRpcBinding & bind)
+    {
+        IEspProtocol* prot = dynamic_cast<IEspProtocol*>(bind.queryListener());
+        if(prot)
+        {
+            prot->removeBindingMap(port, &bind);
+            //Yanrui TODO: are there any other things to clean up?
+            if(prot->countBindings(port) == 0)
+            {
+                DBGLOG("No more bindings on port %d, so freeing up the port.",port);
+                ISocket **socketp = m_srvSockets.getValue(port);
+                ISocket *socket=(socketp!=NULL) ? *socketp : NULL;
+                if(socket != NULL)
+                {
+                    remove(socket);
+                    m_srvSockets.remove(port);
+                    socket->close();
+                }
+            }
+        }
+    }
+
+    virtual IPropertyTree* queryProcPT()
+    {
+        return m_config->queryProcPT();
+    }
+
+    virtual IEspProtocol* queryProtocol(const char* name)
+    {
+        return m_config->queryProtocol(name);
+    }
+
+    virtual IEspRpcBinding* queryBinding(const char* name)
+    {
+        return m_config->queryBinding(name);
+    }
+
+    virtual const char* getProcName()
+    {
+        return m_config->getProcName();
+    }
+
 //ISocketHandler
     void start()
     {

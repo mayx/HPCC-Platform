@@ -155,12 +155,8 @@ ESPresponse ListDESDLEspBindingsResp
 
 ESPrequest [nil_remove] ConfigureESDLBindingMethodRequest
 {
-    string EspProcName;       //Name of ESP Process
-    string EspBindingName;    //Name + port = binding
-    string EspPort;            //Esp Proc + Esp port = ESP Binding
-    string EsdlDefinitionID;   // The ESDL definition name.ver
-    string EsdlServiceName;    //Name of service as defined in ESDL Definition
-    //string MethodName;         //If no port is provided
+    string EsdlBindingId;
+    string MethodName;
     boolean Overwrite;
     //string Attributes;        //xml <methods><Method name="name" url="http://vvvzzz.yyy.xxx:9876" password="h7fermX+gmYuuBwUsS-qeZ==" username="myname" queryname="UPS_Services.RightAddressService" status="available" testrepo="0" querytype="roxie"/><Methods>
     string Config; // dynamic xml, can have <Binding EspProcess=xxx EspBinding=WsAccurint><Definition name=xx id=xx.yy><Methods><Method>...
@@ -185,10 +181,7 @@ ESPresponse [nil_remove, exceptions_inline] ConfigureESDLBindingMethodResponse
 
 ESPrequest GetESDLBindingRequest
 {
-    string EspProcName;   //Name of ESP Process
-    string EspBindingName;
-    string EspPort;       //Name + port = service
-    string EsdlBindingId; //espprocname.espbinding
+    string EsdlBindingId;
     [min_ver("1.1")] bool IncludeInterfaceDefinition;
     [min_ver("1.2")] boolean ReportMethodsAvailable;
 };
@@ -214,8 +207,6 @@ ESPrequest DeleteESDLDefinitionRequest
 ESPrequest DeleteESDLBindingRequest
 {
     string Id;
-    string EspProcess;
-    string EspBinding;
 };
 
 ESPresponse [exceptions_inline] DeleteESDLRegistryEntryResponse

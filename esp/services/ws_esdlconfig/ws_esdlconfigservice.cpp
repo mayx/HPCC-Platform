@@ -116,6 +116,50 @@ IPropertyTree * fetchConfigInfo(const char * config,
     return methodstree;
 }
 
+IPropertyTree * fetchConfigInfo(const char * config,
+                                const char* bindingId)
+{
+    IPropertyTree * methodstree = NULL;
+
+    if (!config || !*config)
+    {
+        throw MakeStringException(-1,"Empty config detected");
+    }
+    else
+    {
+        Owned<IPropertyTree>  configTree = createPTreeFromXMLString(config, ipt_caseInsensitive);
+        //Now let's figure out the structure of the configuration passed in...
+
+        StringBuffer rootname;
+        configTree->getName(rootname);
+
+        IPropertyTree * deftree = NULL;
+
+        if (stricmp(rootname.str(), "Binding") == 0)
+        {
+            if(stricmp(bindingId, configTree->queryProp("@id")) != 0)
+                throw MakeStringException(-1, "Binding id in the config tree doesn't match binding id provided");
+         }
+
+        if (stricmp(rootname.str(), "Definition") == 0)
+            deftree = configTree;
+        else
+            deftree = configTree->queryBranch("Definition[1]");
+
+        if (deftree)
+        {
+            methodstree = deftree->getBranch("Methods");
+        }
+
+        if (!methodstree) //if we didn't already find the methods section of the config, let's look at the root
+        {
+            if (stricmp(rootname.str(), "Methods") == 0)
+                methodstree = configTree.getLink();
+        }
+    }
+    return methodstree;
+}
+
 void CWsESDLConfigEx::init(IPropertyTree *cfg, const char *process, const char *service)
 {
     if(cfg == NULL)
@@ -367,7 +411,6 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
         StringBuffer espProcName(req.getEspProcName());
         StringBuffer espBindingName(req.getEspBindingName());
         StringBuffer espPort(req.getEspPort());
-        StringBuffer espServiceName(req.getEspServiceName());
         StringBuffer esdlDefIdSTR(req.getEsdlDefinitionID());
 
         StringBuffer esdlServiceName(req.getEsdlServiceName());
@@ -413,27 +456,11 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
         if (espProcName.length() == 0)
             throw MakeStringException(-1, "Must provide ESP Process name");
 
-        Owned<IPropertyTree> espproctree;
-
         if (espBindingName.length() == 0)
         {
-            if (espPort.length() <= 0 && espServiceName.length() <= 0)
-                throw MakeStringException(-1, "Must provide either ESP Port, or Service Name");
-
-            espproctree.setown(getEspProcessRegistry(espProcName.str(), espPort.str(), espServiceName.str()));
-
-            if (!espproctree)
-            {
-                StringBuffer msg;
-                msg.appendf("Could not find ESP binding associated with Esp Process '%s' and either port '%s' or Esp Service Name '%s'",
-                        espProcName.str(), espPort.isEmpty() ? "N/A" : espPort.str(), espServiceName.isEmpty() ? "N/A" : espServiceName.str());
-                resp.updateStatus().setCode(-1);
-                resp.updateStatus().setDescription(msg.str());
-                return false;
-            }
+            if (espPort.length() <= 0)
+                throw MakeStringException(-1, "Must provide either ESP Port, or Binding Name");
         }
-
-        StringBuffer bindingName(espproctree != NULL ? espproctree->queryProp("@name") : espBindingName.str());
 
         if (m_esdlStore->definitionExists(esdlDefIdSTR.str()))
         {
@@ -464,7 +491,7 @@ bool CWsESDLConfigEx::onPublishESDLBinding(IEspContext &context, IEspPublishESDL
             }
 
             StringBuffer msg;
-            resp.updateStatus().setCode(m_esdlStore->bindService(bindingName.str(),
+            resp.updateStatus().setCode(m_esdlStore->bindService(espBindingName.str(),
                                                            methodstree.get(),
                                                            espProcName.str(),
                                                            espPort,
@@ -616,18 +643,28 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
         context.getUserID(username);
         DBGLOG("CWsESDLConfigEx::onConfigureESDBindingLMethod User=%s",username.str());
 
-        StringBuffer espProcName(req.getEspProcName());
-        StringBuffer espBindingName(req.getEspBindingName());
-        StringBuffer espPort(req.getEspPort());
-        StringBuffer espServiceName(req.getEsdlServiceName());
-        StringBuffer esdlServiceName(req.getEsdlServiceName());
-        StringBuffer esdlDefIdSTR(req.getEsdlDefinitionID());
+        const char* bindingId = req.getEsdlBindingId();
+        const char* methodName = req.getMethodName();
+        StringBuffer espProcName;
+        StringBuffer espBindingName;
+        StringBuffer espPort;
+        StringBuffer esdlServiceName;
+        StringBuffer esdlDefIdSTR;
         StringBuffer config(req.getConfig());
 
+        StringBuffer msg;
+        Owned<IPropertyTree> bindingtree = m_esdlStore->getBindingTree(bindingId, msg);
+        if(!bindingtree)
+            throw MakeStringException(-1, "Can't find esdl binding for id %s", bindingId);
+        bindingtree->getProp("@espprocess", espProcName);
+        bindingtree->getProp("@espbinding", espBindingName);
+        bindingtree->getProp("@port", espPort);
+        bindingtree->getProp("Definition[1]/@esdlservice", esdlServiceName);
+        bindingtree->getProp("Definition[1]/@id", esdlDefIdSTR);
         Owned<IPropertyTree> methodstree;
 
         if (config.length() > 0)
-            methodstree.setown(fetchConfigInfo(config, espProcName, espBindingName, esdlDefIdSTR, esdlServiceName));
+            methodstree.setown(fetchConfigInfo(config, bindingId));
         else
         {
             double ver = context.getClientVersion();
@@ -677,44 +714,15 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
             if (esdlver <= 0)
                 throw MakeStringException(-1, "Invalid ESDL Definition version detected: %d", esdlver);
         }
-
-        if (esdlServiceName.length() == 0)
-        {
-           if (esdlDefinitionName.length() == 0)
-                throw MakeStringException(-1, "Must provide either valid EsdlDefinition ID <esdldefname>.<ver> or EsdlServiceName");
-            else
-                esdlServiceName.set(esdlDefinitionName.str());
-        }
-
-        if (espProcName.length() == 0)
-            throw MakeStringException(-1, "Must provide ESP Process name");
+        else
+            throw MakeStringException(-1, "Can't find esdl definition for binding %s", bindingId);
 
         Owned<IPropertyTree> espproctree;
 
-        if (espBindingName.length() == 0)
-        {
-            if (espPort.length() <= 0 && espServiceName.length() <= 0)
-                throw MakeStringException(-1, "Must provide either ESP Port, or Service Name");
-
-            espproctree.setown(getEspProcessRegistry(espProcName.str(), espPort.str(), espServiceName.str()));
-
-            if (!espproctree)
-            {
-                StringBuffer msg;
-                msg.appendf(
-                        "Could not find ESP binding associated with Esp Process '%s' and either port '%s' or Esp Service Name '%s'",
-                        espProcName.str(), espPort.isEmpty() ? "N/A" : espPort.str(), espServiceName.isEmpty() ? "N/A" : espServiceName.str());
-                resp.updateStatus().setCode(-1);
-                resp.updateStatus().setDescription(msg.str());
-                return false;
-            }
-        }
-
-        StringBuffer bindingName(espproctree != NULL ? espproctree->queryProp("@name") : espBindingName.str());
-
         if (m_esdlStore->definitionExists(esdlDefIdSTR.str()))
         {
-            IPropertyTreeIterator * iter = methodstree->getElements("Method");
+            VStringBuffer methodxpath("Method[@name='%s']", methodName);
+            IPropertyTreeIterator * iter = methodstree->getElements(methodxpath.str());
             ForEach(*iter)
             {
                 IPropertyTree &item = iter->query();
@@ -734,18 +742,18 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
                 else
                 {
                     StringBuffer msg;
-                    success = m_esdlStore->configureMethod(espProcName.str(), espBindingName.str(), esdlDefIdSTR.toLowerCase().str(), methodName, &item, override, msg);
+                    success = m_esdlStore->configureMethod(bindingId, methodName, &item, override, msg);
                     resp.updateStatus().setDescription(msg.str());
                     if (success == 0)
                     {
                         double ver = context.getClientVersion();
 
-                        ESPLOG(LogMin, "ESDL Binding '%s.%d' configured method '%s' by user='%s' overwrite flag: %s", esdlDefinitionName.str(), esdlver, username.isEmpty() ? "Anonymous" : username.str(), methodName, override ? "TRUE" : "FALSE");
+                        ESPLOG(LogMin, "ESDL Binding '%s' configured method '%s' by user='%s' overwrite flag: %s", bindingId, username.isEmpty() ? "Anonymous" : username.str(), methodName, override ? "TRUE" : "FALSE");
 
                         if (ver >= 1.2)
                         {
                             StringBuffer msg;
-                            Owned<IPropertyTree> esdlbindingtree = m_esdlStore->getBindingTree(espProcName.str(), espBindingName.str(), msg);
+                            Owned<IPropertyTree> esdlbindingtree = m_esdlStore->getBindingTree(bindingId, msg);
                             if (esdlbindingtree)
                             {
                                 IArrayOf<IEspMethodConfig> iesmethods;
@@ -869,18 +877,18 @@ bool CWsESDLConfigEx::onConfigureESDLBindingMethod(IEspContext &context, IEspCon
     return true;
 }
 
-int CWsESDLConfigEx::getBindingXML(const char * espProcName, const char * espBindingName, StringBuffer & bindingXml, StringBuffer & msg)
+int CWsESDLConfigEx::getBindingXML(const char * bindingId, StringBuffer & bindingXml, StringBuffer & msg)
 {
-    Owned<IPropertyTree> esdlBinding = m_esdlStore->getBindingTree(espProcName, espBindingName, msg);
+    Owned<IPropertyTree> esdlBinding = m_esdlStore->getBindingTree(bindingId, msg);
     if (esdlBinding)
     {
         toXML(esdlBinding, bindingXml, 0,0);
-        msg.setf("Successfully fetched binding for ESP proc: %s, and binding: %s", espProcName, espBindingName);
+        msg.setf("Successfully fetched binding %s", bindingId);
         return 0;
     }
     else
     {
-        msg.setf("Could not fetch binding for ESP proc: %s, and binding: %s", espProcName, espBindingName);
+        msg.setf("Could not fetch binding %s", bindingId);
         return -1;
     }
 }
@@ -897,68 +905,15 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
         context.getUserID(username);
         DBGLOG("CWsESDLConfigEx::onGetESDLServiceConfig User=%s",username.str());
 
-        StringBuffer espProcName(req.getEspProcName());
-        StringBuffer espBindingName(req.getEspBindingName());
-        StringBuffer espProcNameFromId;
-        StringBuffer espBindingNameFromId;
-
         const char * esdlBindId = req.getEsdlBindingId();
-        if (esdlBindId && *esdlBindId)
+        if (!(esdlBindId && *esdlBindId))
         {
-            while(esdlBindId && *esdlBindId && *esdlBindId != '.') //RODRIGO: we should have a limit on this...
-            {
-                espProcNameFromId.append(*esdlBindId++);
-            }
-
-            if (espProcNameFromId.length() > 0 && (!esdlBindId || !*esdlBindId || *esdlBindId != '.'))
-                throw MakeStringException(-1, "Invalid ESDL Binding ID format detected. <espprocessname>.<espbindingname>");
-            else
-            {
-                espBindingNameFromId.set(++esdlBindId);
-            }
+           throw MakeStringException(-1, "Must provide EsdlBindingId");
         }
-
-        if (espProcName.length() == 0)
-        {
-            if (espProcNameFromId.length() > 0)
-                espProcName.set(espProcNameFromId);
-            else
-                throw MakeStringException(-1, "Must provide ESP Process name");
-        }
-        else if (espProcNameFromId.length() > 0)
-        {
-            if (strcmp(espProcName.str(), espProcNameFromId.str())!=0)
-                throw MakeStringException(-1, "EspProcessName passed in doesn't match EspProcName from EsdlId passed in, which one is correct?");
-        }
-
-        if (espBindingName.length() == 0)
-        {
-            if (espBindingNameFromId.length() > 0)
-                espBindingName.set(espBindingNameFromId);
-        }
-        else if (espBindingNameFromId.length() > 0)
-        {
-            if (strcmp(espBindingName.str(), espBindingNameFromId.str())!=0)
-                throw MakeStringException(-1, "EspBindingName passed in doesn't match EspBindingName from EsdlId passed in, which one is correct?");
-        }
-
-        resp.setEspProcName(espProcName);
-        resp.setBindingName(espBindingName);
-
-        StringBuffer espPort = req.getEspPort();
         StringBuffer msg;
-        StringBuffer serviceName;
-
-        if (espBindingName.length() == 0)
-        {
-            IPropertyTree * espproctree = getEspProcessRegistry(espProcName.str(), espPort.str(), serviceName.str());
-            if (espproctree)
-                espBindingName.set(espproctree->queryProp("@name"));
-        }
-
+        Owned<IPropertyTree> esdlbindingtree = m_esdlStore->getBindingTree(esdlBindId, msg);
         if (ver >= 1.1)
         {
-            Owned<IPropertyTree> esdlbindingtree = m_esdlStore->getBindingTree(espProcName.str(), espBindingName.str(), msg);
             if (esdlbindingtree)
             {
                 IPropertyTree * def = esdlbindingtree->queryPropTree("Definition[1]");
@@ -1068,7 +1023,7 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
                 }
                 else
                 {
-                    msg.setf("\nCould not find Definition section in ESDL Binding %s.%s", espProcName.str(), espBindingName.str());
+                    msg.setf("\nCould not find Definition section in ESDL Binding %s", esdlBindId);
                     resp.updateStatus().setCode(-1);
                 }
             }
@@ -1077,11 +1032,27 @@ bool CWsESDLConfigEx::onGetESDLBinding(IEspContext &context, IEspGetESDLBindingR
         }
 
         StringBuffer bindingxml;
-        int bindingxmlcode = getBindingXML(espProcName.str(), espBindingName.str(), bindingxml, msg);
+        int retcode;
+        if (esdlbindingtree)
+        {
+            toXML(esdlbindingtree, bindingxml, 0,0);
+            msg.setf("Successfully fetched binding %s", esdlBindId);
+            retcode = 0;
+        }
+        else
+        {
+            msg.setf("Could not fetch binding %s", esdlBindId);
+            retcode = -1;
+        }
+
         if (ver < 1.1)
-            resp.updateStatus().setCode(bindingxmlcode);
+            resp.updateStatus().setCode(retcode);
 
         resp.setConfigXML(bindingxml.str());
+        resp.setBindingName(esdlbindingtree->queryProp("@espbinding"));
+        resp.setEspProcName(esdlbindingtree->queryProp("@espprocess"));
+        resp.setEspPort(esdlbindingtree->queryProp("@port"));
+        resp.setServiceName(esdlbindingtree->queryProp("Definition/@esdlservice"));
         resp.updateStatus().setDescription(msg.str());
     }
     catch(IException* e)
@@ -1145,28 +1116,23 @@ bool CWsESDLConfigEx::onDeleteESDLBinding(IEspContext &context, IEspDeleteESDLBi
     if (!context.validateFeatureAccess(FEATURE_URL, SecAccess_Full, false))
         throw MakeStringException(ECLWATCH_ROXIE_QUERY_ACCESS_DENIED, "Failed to DELETE ESDL entry. Permission denied.");
 
-    StringBuffer espBindingId(req.getId());
-    if (espBindingId.length()<=0)
+    const char* esdlBindingId = req.getId();
+    if (!esdlBindingId || !*esdlBindingId)
     {
-        const char * espprocname = req.getEspProcess();
-        const char * espbindingname = req.getEspBinding();
-        if( !espprocname || !*espprocname ||  !espbindingname || !*espbindingname)
-        {
-            resp.updateStatus().setDescription("Must provide the target ESDL Binding Id or espprocessname and espbindingname");
-            return false;
-        }
-        espBindingId.setf("%s.%s", espprocname, espbindingname);
+        resp.updateStatus().setDescription("Must provide the target ESDL Binding Id");
+        return false;
     }
 
     StringBuffer errmsg, thexml;
-    bool deleted = m_esdlStore->deleteBinding(espBindingId.str(), errmsg, &thexml);
+    bool deleted = m_esdlStore->deleteBinding(esdlBindingId, errmsg, &thexml);
     if (deleted)
     {
         StringBuffer username;
         context.getUserID(username);
-        ESPLOG(LogMin, "ESDL Definition '%s' Deleted by user='%s'", espBindingId.str(), username.isEmpty() ? "Anonymous" : username.str());
+        ESPLOG(LogMin, "ESDL Definition '%s' Deleted by user='%s'", esdlBindingId, username.isEmpty() ? "Anonymous" : username.str());
 
         resp.setDeletedTree(thexml.str());
+        resp.updateStatus().setDescription("Service successfully unbound");
         resp.updateStatus().setCode(0);
     }
     else

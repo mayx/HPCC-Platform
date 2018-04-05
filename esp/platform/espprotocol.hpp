@@ -99,6 +99,7 @@ class CEspApplicationPort
 
     HINSTANCE hxsl;
     Owned<IXslProcessor> xslp;
+    ReadWriteLock rwLock;
 public:
     CEspApplicationPort(bool viewcfg);
 
@@ -122,16 +123,43 @@ public:
 
     int getBindingCount(){return bindingCount;}
     void appendBinding(CEspBindingEntry* entry, bool isdefault);
+    void removeBinding(IEspRpcBinding* binding);
 
     bool rootAuthRequired(){return rootAuth;}
 
-    CEspBindingEntry* queryBindingItem(int item){return (item<bindingCount) ? bindings[item] : NULL;}
+    CEspBindingEntry* queryBindingItem(int item)
+    {
+        ReadLockBlock rblock(rwLock);
+        return (item<bindingCount) ? bindings[item] : NULL;
+    }
     CEspBindingEntry* getDefaultBinding(){return bindings[(defBinding>=0) ? defBinding : 0];}
+    int countBindings() { return bindingCount; }
 #ifdef _USE_OPENLDAP
     unsigned updatePassword(IEspContext &context, IHttpMessage* request, StringBuffer& message);
     void onUpdatePasswordInput(IEspContext &context, StringBuffer &html);
     unsigned onUpdatePassword(IEspContext &context, IHttpMessage* request, StringBuffer& html);
 #endif
+private:
+    class CDelayedBindingRemover: public Thread
+    {
+        Owned<CEspBindingEntry> mEntryHolder;
+    protected:
+        int run()
+        {
+            Link();
+            MilliSleep(5000); // This is only for the short period between when an esp thread is created and when the binding is identified and
+                              // linked inside the thread, so 5 seconds should be more than enough.
+            Release();
+            return 0;
+        }
+
+    public:
+        IMPLEMENT_IINTERFACE;
+        CDelayedBindingRemover(CEspBindingEntry* bindingEntry)
+        {
+            mEntryHolder.setown(bindingEntry);
+        }
+    };
 };
 
 typedef map<int, CEspApplicationPort*> CApplicationPortMap;
@@ -182,11 +210,14 @@ public:
     virtual const char * getProtocolName();
 
     virtual void addBindingMap(ISocket *sock, IEspRpcBinding* binding, bool isdefault);
+    virtual void removeBindingMap(int port, IEspRpcBinding* binding);
     virtual CEspApplicationPort* queryApplicationPort(int handle);
 
     virtual void setMaxRequestEntityLength(int len) {m_MaxRequestEntityLength = len;};
     virtual int getMaxRequestEntityLength() { return m_MaxRequestEntityLength; }
     virtual void setContainer(IEspContainer* container) { m_container = container; }
+
+    virtual int countBindings(int port);
 };
 
 #endif

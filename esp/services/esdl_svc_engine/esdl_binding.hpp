@@ -170,7 +170,7 @@ public:
 
 #define DEFAULT_ESDLBINDING_URN_BASE "urn:hpccsystems:ws"
 
-class EsdlBindingImpl : public CHttpSoapBinding, implements IEsdlListener
+class EsdlBindingImpl : public CHttpSoapBinding
 {
 private:
     Owned<IPropertyTree>                    m_bndCfg;
@@ -184,12 +184,12 @@ private:
     StringAttr                              m_processName;
     StringAttr                              m_espServiceName; //previously held the esdl service name, we are now
                                                               //supporting mismatched ESP Service name assigned to a different named ESDL service definition
-    Owned<IEsdlSubscription>                m_pSubscription;
     Owned<IEsdlStore>                       m_pCentralStore;
     CriticalSection                         configurationLoadCritSec;
     StringBuffer                            m_esdlStateFilesLocation;
     MapStringTo<SecAccessFlags>             m_accessmap;
     StringBuffer                            m_staticNamespace;
+    StringAttr                              m_bindingId;
 
     virtual void clearDESDLState()
     {
@@ -211,11 +211,9 @@ public:
     EsdlBindingImpl();
     EsdlBindingImpl(IPropertyTree* cfg, const char *bindname=NULL, const char *procname=NULL);
 
-    virtual ~EsdlBindingImpl()
+   virtual ~EsdlBindingImpl()
     {
-        //Unsubscribe early to avoid a segfault due to closed dali connection
-        if(m_pSubscription)
-            m_pSubscription->unsubscribe();
+        DBGLOG("~EsdlBindingImpl()");
     }
 
     virtual int onGet(CHttpRequest* request, CHttpResponse* response);
@@ -268,19 +266,20 @@ public:
     bool usesESDLDefinition(const char * name, int version);
     bool usesESDLDefinition(const char * id);
     virtual bool isDynamicBinding() const override { return true; }
+    virtual bool isBound() const override { return (m_esdlBndCfg.get() != nullptr); }
     virtual unsigned getCacheMethodCount(){return 0;}
-    virtual void onNotify(EsdlNotifyData* data);
+    bool reloadBindingFromCentralStore(const char* bindingId);
+    bool reloadDefinitionsFromCentralStore(IPropertyTree * esdlBndCng, StringBuffer & loadedname);
+    void clearBindingState();
 
 private:
     int onGetRoxieBuilder(CHttpRequest* request, CHttpResponse* response, const char *serv, const char *method);
     int onRoxieRequest(CHttpRequest* request, CHttpResponse* response, const char *  method);
     void getSoapMessage(StringBuffer& out,StringBuffer& soapresp,const char * starttxt,const char * endtxt);
 
-    bool reloadBindingFromCentralStore(const char *binding, const char *process);
-    bool reloadDefinitionsFromCentralStore(IPropertyTree * esdlBndCng, StringBuffer & loadedname);
     void saveDESDLState();
     IPropertyTree * fetchESDLBinding(const char *process, const char *bindingName, const char * stateFileName);
-    bool loadDefinitions(const char * espServiceName, IEsdlDefinition * esdl, IPropertyTree * config, StringBuffer & loadedServiceName, const char * stateFileName);
+    bool loadDefinitions(const char * espServiceName, Owned<IEsdlDefinition>& esdl, IPropertyTree * config, StringBuffer & loadedServiceName, const char * stateFileName);
 };
 
 #endif //_EsdlBinding_HPP__

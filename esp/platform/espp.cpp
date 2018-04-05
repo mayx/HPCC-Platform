@@ -236,6 +236,13 @@ static void usage()
     exit(1);
 }
 
+static IEspServer* pEspServer = nullptr;
+
+IEspServer* queryEspServer()
+{
+    return pEspServer;
+}
+
 int init_main(int argc, char* argv[])
 {
     InitModuleObjects();
@@ -368,15 +375,15 @@ int init_main(int argc, char* argv[])
 
         try
         {
-            CEspServer *srv = new CEspServer(config);
+            server.setown(new CEspServer(config));
             if(SEHMappingEnabled)
-                srv->setSavedSEHHandler(SEHMappingEnabled);
-            server.setown(srv);
-            abortHandler.setServer(srv);
+                server->setSavedSEHHandler(SEHMappingEnabled);
+            pEspServer = server.get();
+            abortHandler.setServer(server.get());
             setEspContainer(server.get());
 
             config->loadAll();
-            config->bindServer(*server.get(), *server.get()); 
+            config->bindServer(*server.get(), *server.get());
             
         }
         catch(IException* e)

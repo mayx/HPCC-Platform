@@ -254,7 +254,7 @@ CEspConfig::CEspConfig(IProperties* inputs, IPropertyTree* envpt, IPropertyTree*
     m_cfg.setown(procpt);
 
     loadBuiltIns();   
-   
+
     // load options
     const char* level = m_cfg->queryProp("@logLevel");
     m_options.logLevel = level ? atoi(level) : LogMin;
@@ -511,7 +511,7 @@ void CEspConfig::loadBinding(binding_cfg &xcfg)
 
     if(sit == m_services.end())
     {
-        DBGLOG("Warning: Service %s not found for the binding", xcfg.service_name.str());
+        DBGLOG("Warning: Service %s not found for binding %s", xcfg.service_name.str(), xcfg.name.str());
     }
     else
     {
@@ -520,7 +520,7 @@ void CEspConfig::loadBinding(binding_cfg &xcfg)
 
     if(pit == m_protocols.end())
     {
-        throw MakeStringException(-1, "Protocol %s not found for the binding", xcfg.protocol_name.str());
+        throw MakeStringException(-1, "Protocol %s not found for binding %s", xcfg.protocol_name.str(), xcfg.name.str());
     }
     else
     {
@@ -667,6 +667,37 @@ void CEspConfig::loadBindings()
 #endif
         iter++;
     }
+}
+
+void CEspConfig::startEsdlMonitor()
+{
+    start_esdl_monitor_t xproc = nullptr;
+    Owned<IEspPlugin> pplg = getPlugin("esdl_svc_engine");
+    if (pplg)
+    {
+        DBGLOG("Plugin esdl_svc_engine loaded.");
+        xproc = (start_esdl_monitor_t) pplg->getProcAddress("startEsdlMonitor");
+    }
+    else
+        throw MakeStringException(-1, "Plugin esdl_svc_engine can't be loaded");
+
+    if (xproc)
+    {
+        DBGLOG("Procedure startEsdlMonitor loaded, now calling it...");
+        xproc();
+    }
+    else
+        throw MakeStringException(-1, "procedure startEsdlMonitor can't be loaded");
+}
+
+void CEspConfig::stopEsdlMonitor()
+{
+    stop_esdl_monitor_t xproc = nullptr;
+    Owned<IEspPlugin> pplg = getPlugin("esdl_svc_engine");
+    if (pplg)
+        xproc = (stop_esdl_monitor_t) pplg->getProcAddress("stopEsdlMonitor");
+    if (xproc)
+        xproc();
 }
 
 class ESPxsltIncludeHandler : public CInterface, implements IIncludeHandler
@@ -929,3 +960,16 @@ bool CEspConfig::checkESPCache()
     return espCacheAvailable;
 }
 
+IEspRpcBinding* CEspConfig::queryBinding(const char* name)
+{
+    list<binding_cfg*>::iterator iter = m_bindings.begin();
+
+    while (iter!=m_bindings.end())
+    {
+        const char * bindingName = (**iter).name.str();
+        if (strcmp(bindingName, name) == 0)
+            return (**iter).bind.get();
+        iter++;
+    }
+    return nullptr;
+}
