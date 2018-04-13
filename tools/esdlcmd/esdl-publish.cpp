@@ -122,14 +122,15 @@ public:
         Owned<IClientPublishESDLDefinitionRequest> request = esdlConfigClient->createPublishESDLDefinitionRequest();
 
         StringBuffer esxml;
+        //TODO: when optESDLService is not defined...
         esdlHelper->getServiceESXDL(optSource.get(), optESDLService.get(), esxml, 0, NULL, (DEPFLAG_INCLUDE_TYPES & ~DEPFLAG_INCLUDE_METHOD), optIncludePath.str());
         if (esxml.length()==0)
         {
             fprintf(stderr,"\nESDL Definition for service %s could not be loaded from: %s\n", optESDLService.get(), optSource.get());
             return -1;
         }
-
-        request->setServiceName(optESDLService.get());
+        if(optESDLService.length() > 0)
+            request->setServiceName(optESDLService.get());
 
         if (optVerbose)
             fprintf(stdout,"\nESDL Definition: \n%s\n", esxml.str());
@@ -146,7 +147,10 @@ public:
             return 1;
         }
 
-        fprintf(stdout, "\nESDL Service: %s: %s", optESDLService.get(), resp->getStatus().getDescription());
+        if(optESDLService.length() > 0)
+            fprintf(stdout, "\nESDL Service: %s: %s\n", optESDLService.get(), resp->getStatus().getDescription());
+        else
+            fprintf(stdout, "\n%s\n", resp->getStatus().getDescription());
 
         return 0;
     }
@@ -156,7 +160,7 @@ public:
         printf("\nUsage:\n\n"
                 "esdl publish <filename.(ecm|esdl|xml)> <servicename> [command options]\n\n"
                 "   <filename.(ecm|esdl|xml)>   The ESDL file containing service definition in esdl format (.ecm |.esdl) or in esxdl format (.xml) \n"
-                "   <servicename>               The ESDL defined ESP service to publish, optional if ESDL definition contains a single service definition\n"
+                "   <servicename>               The ESDL defined ESP service to publish. Optional.\n"
                 "Options (use option flag followed by appropriate value):\n"
                 "   --overwrite                 Overwrite the latest version of this ESDL Definition\n"
                 ESDLOPT_INCLUDE_PATH_USAGE
@@ -735,17 +739,30 @@ public:
             return 1;
         }
 
-        IArrayOf<IConstESDLBinding> & binds = resp->getBindings();
-
-        if (binds.length() > 0)
-            fprintf(stdout, "\nESDL Bindings found:\n");
-
-        ForEachItemIn(bindindex, binds)
+        bool found = false;
+        IArrayOf<IConstEspProcessStruct> & processes = resp->getEspProcesses();
+        ForEachItemIn(procInd, processes)
         {
-            IConstESDLBinding & bind = binds.item(bindindex);
-            fprintf(stdout, "\t%s \n", bind.getId());
+            IConstEspProcessStruct& process = processes.item(procInd);
+            IArrayOf<IConstEspPortStruct>& ports = process.getPorts();
+            ForEachItemIn(portInd, ports)
+            {
+                IConstEspPortStruct& port = ports.item(portInd);
+                IArrayOf<IConstESDLBinding>& bindings = port.getBindings();
+                ForEachItemIn(bindInd, bindings)
+                {
+                    IConstESDLBinding& binding = bindings.item(bindInd);
+                    if(!found)
+                    {
+                        found = true;
+                        fprintf(stdout, "\nESDL bindings found:\n");
+                    }
+                    fprintf(stdout, "\t%s\n", binding.getId());
+                }
+            }
         }
-
+        if(!found)
+            fprintf(stdout, "\nNo ESDL binding found.\n");
         return 0;
     }
 
@@ -983,11 +1000,11 @@ public:
 
                         if (resp->getStatus().getCode() == 0)
                         {
-                            fprintf(stdout, "\nSuccessfully unbound method %s from ESDL Binding %s.", optMethod.get(), optBindingId.get());
+                            fprintf(stdout, "\nSuccessfully unbound method %s from ESDL Binding %s.\n", optMethod.get(), optBindingId.get());
                             success = 0;
                         }
                         else
-                            fprintf(stdout, "\nCould not unbound method %s from ESDL Binding %s: %s", optMethod.get(), optBindingId.get(), resp->getStatus().getDescription());
+                            fprintf(stdout, "\nCould not unbound method %s from ESDL Binding %s: %s\n", optMethod.get(), optBindingId.get(), resp->getStatus().getDescription());
                     }
                     else
                         fprintf(stdout, "\n Could not remove Method %s from ESDL Binding %s configuration.\n", optMethod.get(), optBindingId.get());

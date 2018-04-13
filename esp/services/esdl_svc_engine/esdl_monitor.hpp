@@ -19,6 +19,13 @@
 #include "esdl_def.hpp"
 #include "esdl_transformer.hpp"
 
+interface IEsdlShare : implements IInterface
+{
+    virtual void add(const char* defId, IEsdlDefinition* defobj) = 0;
+    virtual void remove(const char* defId) = 0;
+    virtual Linked<IEsdlDefinition> query(const char* defId) = 0;
+};
+
 interface IEsdlMonitor : implements IInterface
 {
     virtual void registerBinding(const char* bindingId, IEspRpcBinding* binding) = 0;
@@ -27,6 +34,7 @@ interface IEsdlMonitor : implements IInterface
 extern "C" esdl_decl void startEsdlMonitor();
 extern "C" esdl_decl void stopEsdlMonitor();
 esdl_decl IEsdlMonitor* queryEsdlMonitor();
+esdl_decl IEsdlShare* queryEsdlShare();
 
 #define ESDL_MONITOR_HPP
 

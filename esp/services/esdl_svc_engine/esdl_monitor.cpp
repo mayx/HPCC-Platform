@@ -22,6 +22,118 @@
 #include "esdl_store.hpp"
 #include <memory>
 
+class CEsdlInstance : implements IInterface, public CInterface
+{
+public:
+    IMPLEMENT_IINTERFACE;
+    CEsdlInstance() { }
+    virtual ~CEsdlInstance()
+    {
+    }
+    StringBuffer m_defId;
+    Owned<IEsdlDefinition> m_def;
+};
+
+class CEsdlShare : implements IEsdlShare, public Thread
+{
+public:
+    IMPLEMENT_IINTERFACE;
+    CEsdlShare() : m_stop(false)
+    {
+    }
+    virtual ~CEsdlShare() {}
+
+    virtual void add(const char* defId, IEsdlDefinition* def) override
+    {
+        if(!defId || !*defId || !def)
+            return;
+        StringBuffer lcid(defId);
+        lcid.trim().toLowerCase();
+        if(lcid.length() == 0)
+            return;
+        defId = lcid.str();
+        DBGLOG("Adding esdl definition %s to shared cache", defId);
+        Owned<CEsdlInstance> instance = new CEsdlInstance();
+        instance->m_defId.set(defId);
+        instance->m_def.set(def);
+        CriticalBlock cb(m_critSect);
+        m_esdlInstanceMap.setValue(defId, instance.getLink());
+    }
+
+    virtual void remove(const char* defId) override
+    {
+        if(!defId || !*defId)
+            return;
+        StringBuffer lcid(defId);
+        lcid.trim().toLowerCase();
+        if(lcid.length() == 0)
+            return;
+        defId = lcid.str();
+        DBGLOG("Removing esdl definition %s from shared cache", defId);
+        CriticalBlock cb(m_critSect);
+        m_esdlInstanceMap.remove(defId);
+    }
+
+    virtual Linked<IEsdlDefinition> query(const char* defId) override
+    {
+        if(!defId || !*defId)
+            return nullptr;
+        StringBuffer lcid(defId);
+        lcid.trim().toLowerCase();
+        if(lcid.length() == 0)
+            return nullptr;
+        defId = lcid.str();
+        CEsdlInstance* instance = nullptr;
+        CriticalBlock cb(m_critSect);
+        Owned<CEsdlInstance>* instancepp = m_esdlInstanceMap.getValue(defId);
+        if(instancepp)
+            instance = *instancepp;
+        if(instance)
+            return instance->m_def.get();
+        return nullptr;
+    }
+
+    //Thread
+    virtual int run() override
+    {
+        while (!m_stop)
+        {
+            m_waitsem.wait(60000);
+            DBGLOG("Checking for unused definition objects in shared cache...");
+            CriticalBlock cb(m_critSect);
+            StringArray ids;
+            for(auto& item : m_esdlInstanceMap)
+            {
+                CEsdlInstance* instance = item.getValue();
+                if(!instance || !instance->m_def.get())
+                    continue;
+                CInterface* defptr = dynamic_cast<CInterface*>(instance->m_def.get());
+                if(!defptr || !defptr->IsShared())
+                    ids.append(instance->m_defId.str());
+            }
+            ForEachItemIn(x, ids)
+            {
+                const char* id = ids.item(x);
+                DBGLOG("Definition %s is no longer being used, remove it from esdl shared cache", id);
+                m_esdlInstanceMap.remove(id);
+            }
+        }
+
+        return 0;
+    }
+
+    virtual void stop()
+    {
+        m_stop = true;
+        m_waitsem.signal();
+    }
+private:
+    CriticalSection m_critSect;
+    MapStringTo<Owned<CEsdlInstance>> m_esdlInstanceMap;
+    Semaphore m_waitsem;
+    bool m_stop;
+};
+
 static CriticalSection gEsdlMonitorCritSection;
 
 class CEsdlMonitor : implements IEsdlMonitor, public CInterface, implements IEsdlListener
@@ -32,6 +144,7 @@ private:
     StringBuffer mEnvptHeader;
     Owned<IEsdlStore> m_pCentralStore;
     Owned<IEsdlSubscription> m_pSubscription;
+    Owned<CEsdlShare> m_esdlShare;
 public:
     IMPLEMENT_IINTERFACE;
 
@@ -39,12 +152,20 @@ public:
     {
         constructEnvptHeader();
         m_pCentralStore.setown(createEsdlCentralStore());
+        m_esdlShare.setown(new CEsdlShare());
+        m_esdlShare->start();
         DBGLOG("EsdlMonitor started.");
     }
 
     virtual ~CEsdlMonitor()
     {
-        m_pSubscription->unsubscribe();
+        if(m_pSubscription)
+            m_pSubscription->unsubscribe();
+    }
+
+    CEsdlShare* queryEsdlShare()
+    {
+        return m_esdlShare.get();
     }
 
     void setupSubscription()
@@ -109,10 +230,18 @@ public:
     {
         if(!data)
             return;
+
         EsdlNotifyType ntype = data->type;
-        if(ntype == EsdlNotifyType::DefinitionUpdate)
+
+        if(ntype == EsdlNotifyType::DefinitionDelete)
         {
             CriticalBlock cb(m_CritSect);
+            m_esdlShare->remove(data->id.str());
+        }
+        else if(ntype == EsdlNotifyType::DefinitionUpdate)
+        {
+            CriticalBlock cb(m_CritSect);
+            m_esdlShare->remove(data->id.str());
             for (auto sb:m_esdlBindingMap)
             {
                 EsdlBindingImpl* binding = sb.getValue();
@@ -163,6 +292,12 @@ public:
         }
         else if(ntype == EsdlNotifyType::BindingAdd)
         {
+            if(!espProcessMatch(data->espProcess.str()))
+            {
+                DBGLOG("ESDL binding %s is not for this esp process, ignore.", data->id.str());
+                return;
+            }
+
             CriticalBlock cb(m_CritSect);
             EsdlBindingImpl* theBinding = findBinding(data->id.str());
             if(theBinding)
@@ -172,11 +307,6 @@ public:
                 return;
             }
 
-            if(!espProcessMatch(data->espProcess.str()))
-            {
-                DBGLOG("ESDL binding %s is not for this esp process, ignore.", data->id.str());
-                return;
-            }
             bool existsStatic = false;
             if(data->name.length() > 0)
                 existsStatic = existsStaticBinding(data->name.str());
@@ -215,7 +345,7 @@ public:
         }
         else
         {
-            //DefintionAdd and DefinitionDelete shouldn't happen
+            WARNLOG("Unexpected notify type received, ignore.");  //DefintionAdd and DefinitionDelete shouldn't happen
         }
     }
 
@@ -242,6 +372,8 @@ private:
     void addBinding(EsdlNotifyData* data)
     {
         DBGLOG("Creating new binding %s", data->id.str());
+        if(data->name.length() == 0)
+            data->name.set(data->id);
         StringBuffer protocol, serviceName;
         Owned<IPropertyTree> envpt = getEnvpt(data, protocol, serviceName);
         if(protocol.length() == 0)
@@ -257,7 +389,7 @@ private:
         esdlbinding->addService(esdlservice->getServiceType(), nullptr, data->port, *esdlservice.get());
         esdlbinding->addProtocol(protocol.str(), *espProtocol);
         server->addBinding(data->name.str(), nullptr, data->port, *espProtocol, *esdlbinding.get(), false, envpt);
-        DBGLOG("Successfully instantiated new DESDL binding %s and service %s", data->id.str(), serviceName.str());
+        DBGLOG("Successfully instantiated new DESDL binding %s and service", data->id.str());
     }
 
     bool existsStaticBinding(const char* espBinding)
@@ -304,15 +436,15 @@ private:
     IPropertyTree* getEnvpt(EsdlNotifyData* notifyData, StringBuffer& protocol, StringBuffer& serviceName)
     {
         VStringBuffer portStr("%d", notifyData->port);
-        return getEnvpt(notifyData->espProcess.str(), notifyData->name.str(),
+        return getEnvpt(notifyData->espProcess.str(), notifyData->name.str(), notifyData->id.str(),
                 portStr.str(), protocol, serviceName);
     }
 
-    IPropertyTree* getEnvpt(const char* espProcess, const char* bindingName, const char* port, StringBuffer& protocol, StringBuffer& serviceName)
+    IPropertyTree* getEnvpt(const char* espProcess, const char* bindingName, const char* bindingId, const char* port, StringBuffer& protocol, StringBuffer& serviceName)
     {
-        const static int DEFAULT_PORT = 8043;
-        const static int DEFAULT_HTTPS_PORT = 18043;
-        serviceName.set(bindingName);
+        if(!bindingName || !*bindingName)
+            bindingName = bindingId;
+        serviceName.set(bindingId);
         StringBuffer envxmlbuf;
         IPropertyTree* procpt = queryEspServer()->queryProcPT();
         if(procpt)
@@ -322,22 +454,17 @@ private:
             IPropertyTree* bindingtree = procpt->queryPropTree(xpath.str());
             if(bindingtree)
             {
-                protocol.set(bindingtree->queryProp("@protocol"));
+                bindingtree->getProp("@protocol", protocol);
                 return LINK(procpt);
             }
             //Otherwise check if there's binding configured on the same port
-            xpath.clear().appendf("EspBinding[@type='EsdlBinding'][@port='%s']", port);
+            xpath.clear().appendf("EspBinding[@type='EsdlBinding'][@port='%s'][1]", port);
             bindingtree = procpt->queryPropTree(xpath.str());
             if(!bindingtree)
             {
-                //Otherwise check if there's binding configured on the default esdl port
-                xpath.clear().appendf("EspBinding[@type='EsdlBinding'][@port='%d']", DEFAULT_PORT);
+                //Otherwise check if there's binding configured with port 0
+                xpath.clear().appendf("EspBinding[@type='EsdlBinding'][@port='0']");
                 bindingtree = procpt->queryPropTree(xpath.str());
-                if(!bindingtree)
-                {
-                    xpath.clear().appendf("EspBinding[@type='EsdlBinding'][@port='%d']", DEFAULT_HTTPS_PORT);
-                    bindingtree = procpt->queryPropTree(xpath.str());
-                }
             }
             if(bindingtree)
             {
@@ -362,18 +489,11 @@ private:
                 }
             }
         }
-        //Otherwise construct a config, mostly for testing and demo purposes
-        WARNLOG("There's no esp binding configured on port %s, default port %d or default HTTPS port %d, constructing one on the fly", port, DEFAULT_PORT, DEFAULT_HTTPS_PORT);
-        protocol.set("http");
-        envxmlbuf.appendf("%s\n<EspService name=\"%s\" type=\"DynamicESDL\" plugin=\"esdl_svc_engine\" namespaceBase=\"urn:hpccsystems:ws\"/>"
-                               "<EspBinding name=\"%s\" service=\"%s\" protocol=\"http\" type=\"EsdlBinding\" plugin=\"esdl_svc_engine\" netAddress=\"0.0.0.0\" port=\"%s\"/>\n"
-                           "</EspProcess></Software></Environment>",
-                mEnvptHeader.str(), serviceName.str(), bindingName, serviceName.str(), port);
-        return createPTreeFromXMLString(envxmlbuf.str());
+        throw MakeStringException(-1, "There's no template esp binding configured on port %s, or port 0.", port);
     }
 };
 
-static Owned<IEsdlMonitor> gEsdlMonitor;
+static Owned<CEsdlMonitor> gEsdlMonitor;
 static bool isEsdlMonitorStarted = false;
 
 extern "C" esdl_decl void startEsdlMonitor()
@@ -393,7 +513,10 @@ extern "C"  void stopEsdlMonitor()
 {
     DBGLOG("stopping esdl monitor...");
     if(gEsdlMonitor.get() != nullptr)
+    {
+        gEsdlMonitor->queryEsdlShare()->stop();
         gEsdlMonitor.clear();
+    }
 }
 
 esdl_decl IEsdlMonitor* queryEsdlMonitor()
@@ -401,4 +524,11 @@ esdl_decl IEsdlMonitor* queryEsdlMonitor()
     if(!isEsdlMonitorStarted)
         startEsdlMonitor();
     return gEsdlMonitor.get();
+}
+
+esdl_decl IEsdlShare* queryEsdlShare()
+{
+    if(!isEsdlMonitorStarted)
+        startEsdlMonitor();
+    return gEsdlMonitor->queryEsdlShare();
 }

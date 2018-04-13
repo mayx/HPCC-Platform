@@ -1027,6 +1027,18 @@ bool EsdlBindingImpl::loadDefinitions(const char * espServiceName, Owned<IEsdlDe
         try
         {
             const char * id = esdlDefinitionConfig->queryProp("@id");
+            DBGLOG("Loading esdl definition for ID %s", id);
+            loadedServiceName.set(esdlDefinitionConfig->queryProp("@name"));
+            IEsdlShare* esdlshare = queryEsdlShare();
+            Linked<IEsdlDefinition> shareddef = esdlshare->query(id);
+            if(shareddef)
+            {
+                DBGLOG("Found esdl definition %s in shared cache, use it directly.", id);
+                esdl.set(shareddef);
+                return true;
+            }
+            else
+                DBGLOG("Esdl definition %s not found in shared cache, loading it from store", id);
             StringBuffer esdlXML;
             m_pCentralStore->fetchDefinition(id, esdlXML);
             if (!esdlXML.length())
@@ -1049,7 +1061,6 @@ bool EsdlBindingImpl::loadDefinitions(const char * espServiceName, Owned<IEsdlDe
             DBGLOG("\nESDL Definition to be loaded:\n%s", esdlXML.str());
 #endif
             esdl->addDefinitionFromXML(esdlXML, id);
-            loadedServiceName.set(esdlDefinitionConfig->queryProp("@name"));
 
             if (strcmp(loadedServiceName.str(), espServiceName)!=0)
                 DBGLOG("ESDL Binding: ESP service %s now based off of ESDL Service def: %s", espServiceName, loadedServiceName.str());
@@ -1074,6 +1085,7 @@ bool EsdlBindingImpl::loadDefinitions(const char * espServiceName, Owned<IEsdlDe
                     DBGLOG("Error saving DESDL state file for ESP service %s", espServiceName);
                 }
             }
+            esdlshare->add(id, esdl.get());
         }
         catch (IException * e)
         {

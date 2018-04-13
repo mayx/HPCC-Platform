@@ -1537,18 +1537,16 @@ IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, co
 
 IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, StringArray &methods, double requestedVer, IProperties *opts, unsigned flags)
 {
-    IEsdlDefService* serviceDef;
-    IEsdlDefMethod* methodDef;
-    EsdlDefObjectArray serviceArray;
+    IEsdlDefService* serviceDef = nullptr;
     EsdlDefObjectArray methodArray;
     EsdlDefObjectWrapperArray* dependencies = new EsdlDefObjectWrapperArray();
-    Owned<IEsdlDefMethodIterator> methodIter;
 
     // I think it's just a namespace/xml_tag/structure name naming difference
     // but be sure to know where these structures listed in the schema are
     // coming from and how they're defined:
     // Exceptions, ArrayOfEspException, EspException
     TimeSection ts("EsdlDefinition::getDependencies");
+
     if(service && *service)
     {
         serviceDef = this->queryService(service);
@@ -1558,26 +1556,43 @@ IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, St
             throw( MakeStringException(0, "ESDL Service Definition not found for %s", service) );
         }
     }
-    else
+    else if(methods.length() > 0) //Only require service name when "methods" is provided
     {
         throw( MakeStringException(0, "No ESDL Service Definition provided, need to have a service to search in for methods") );
     }
 
     if( methods.length() < 1 )
     {
-        methodIter.setown(serviceDef->getMethods());
-        for( methodIter->first(); methodIter->isValid(); methodIter->next() )
+        if(serviceDef)
         {
-            if ((flags & DEPFLAG_ECL_ONLY) && methodIter->query().getPropInt("ecl_hide"))
-                continue;
-            methodArray.append( methodIter->query() );
+            Owned<IEsdlDefMethodIterator> methodIter = serviceDef->getMethods();
+            for( methodIter->first(); methodIter->isValid(); methodIter->next() )
+            {
+                if ((flags & DEPFLAG_ECL_ONLY) && methodIter->query().getPropInt("ecl_hide"))
+                    continue;
+                methodArray.append( methodIter->query() );
+            }
+        }
+        else
+        {
+            ForEachItemIn(idx, this->services)
+            {
+                IEsdlDefService* oneServiceDef = &this->services.item(idx);
+                Owned<IEsdlDefMethodIterator> methodIter = oneServiceDef->getMethods();
+                for( methodIter->first(); methodIter->isValid(); methodIter->next() )
+                {
+                    if ((flags & DEPFLAG_ECL_ONLY) && methodIter->query().getPropInt("ecl_hide"))
+                        continue;
+                    methodArray.append( methodIter->query() );
+                }
+            }
         }
     }
     else
     {
         ForEachItemIn( i, methods )
         {
-            methodDef = serviceDef->queryMethodByName(methods.item(i));
+            IEsdlDefMethod* methodDef = serviceDef->queryMethodByName(methods.item(i));
 
             if(!methodDef)
                 throw( MakeStringException(0, "ESDL Method Definition not found for %s in service %s", methods.item(i), service) );
@@ -1590,10 +1605,22 @@ IEsdlDefObjectIterator* EsdlDefinition::getDependencies( const char* service, St
     this->gatherMethodDependencies( *dependencies, methodArray, requestedVer, opts, flags );
 
     bool allTypes = !(flags & DEPFLAG_INCLUDE_TYPES); //not asking for any explicit types indicates all types
-    if(serviceDef && (allTypes || (flags & DEPFLAG_INCLUDE_SERVICE)))
+    if(allTypes || (flags & DEPFLAG_INCLUDE_SERVICE))
     {
-        EsdlDefObjectWrapper* wrapper = new EsdlDefObjectWrapper( *serviceDef );
-        dependencies->append( *wrapper );
+        if(serviceDef)
+        {
+            EsdlDefObjectWrapper* wrapper = new EsdlDefObjectWrapper( *serviceDef );
+            dependencies->append( *wrapper );
+        }
+        else
+        {
+            ForEachItemIn(idx, this->services)
+            {
+                IEsdlDefService* oneServiceDef = &this->services.item(idx);
+                EsdlDefObjectWrapper* wrapper = new EsdlDefObjectWrapper( *oneServiceDef );
+                dependencies->append( *wrapper );
+            }
+        }
     }
 
     return new OwnedEsdlDefObjectArrayIterator(dependencies);
