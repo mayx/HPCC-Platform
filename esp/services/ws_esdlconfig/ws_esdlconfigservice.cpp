@@ -1249,7 +1249,51 @@ bool CWsESDLConfigEx::onDeleteESDLBinding(IEspContext &context, IEspDeleteESDLBi
                 resp.updateStatus().setDescription("Must provide the target ESDL Binding Id or espprocessname and espbindingname");
                 return false;
             }
-            esdlBindingId.setf("%s.%s", espprocname, espbindingname);
+            Owned<IPropertyTree> esdlBinding = m_esdlStore->fetchBinding(espprocname, espbindingname);
+            if(esdlBinding)
+                esdlBinding->getProp("@id", esdlBindingId);
+            else
+            {
+                resp.updateStatus().setDescription("No esdl binding found for the esp process and binding provided");
+                return false;
+            }
+        }
+    }
+    else
+    {
+        if(ver < 1.4)
+        {
+            bool isOldFormat = false;
+            int i = 0, j = 0;
+            for(i = 0; i < esdlBindingId.length(); i++)
+            {
+                if(esdlBindingId.charAt(i) == '.')
+                    break;
+            }
+            if(i < esdlBindingId.length())
+            {
+                for(j = i+1; j < esdlBindingId.length(); j++)
+                {
+                    if(esdlBindingId.charAt(j) == '.')
+                        break;
+                }
+                if(j == esdlBindingId.length())
+                    isOldFormat = true;
+            }
+            if(isOldFormat)
+            {
+                StringBuffer proc, binding;
+                proc.append(i, esdlBindingId.str());
+                binding.append(j-i-1, esdlBindingId.str()+i+1);
+                Owned<IPropertyTree> esdlBinding = m_esdlStore->fetchBinding(proc.str(), binding.str());
+                if(esdlBinding)
+                    esdlBinding->getProp("@id", esdlBindingId.clear());
+                else
+                {
+                    resp.updateStatus().setDescription("No esdl binding found for the esp process and binding provided");
+                    return false;
+                }
+            }
         }
     }
 
