@@ -160,7 +160,8 @@ define([
                             Port: TpBinding.Port,
                             DefinitionID: TpBinding.ESDLBinding.Definition.Id,
                             Service: TpBinding.ESDLBinding.Definition.Name,
-                            Protocol: TpBinding.Protocol
+                            Protocol: TpBinding.Protocol,
+                            ver_: "1.3"
                         });
                     });
                 });
