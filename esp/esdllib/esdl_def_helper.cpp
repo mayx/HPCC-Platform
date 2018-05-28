@@ -154,6 +154,25 @@ esdl_decl void removeEclHidden(StringBuffer &xml)
     toXML(depTree, xml.clear());
 }
 
+//TODO: xml encoding, value, and key?!
+bool getOptsString(IProperties *opts, StringBuffer& str)
+{
+    if(!opts)
+        return false;
+    Owned<IPropertyIterator> it = opts->getIterator();
+    for (it->first(); it->isValid(); it->next()) {
+        const char* key = it->getPropKey();
+        if (!key || !*key || stricmp(key,"form")==0 || stricmp(key,"__querystring")==0)
+            continue;
+        str.appendf("<%s>", key);
+        const char* v = opts->queryProp(key);
+        if (v && *v)
+            str.append(v);
+        str.appendf("</%s>", key);
+    }
+    return true;
+}
+
 void EsdlDefinitionHelper::toXML( IEsdlDefObjectIterator& objs, StringBuffer &xml, double version, IProperties *opts, unsigned requestedFlags )
 {
     TimeSection ts("serializing EsdlObjects to XML");
@@ -227,6 +246,9 @@ void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xs
         const char *tns = (ns) ? ns :params->queryProp("tnsParam");
 
         xml.appendf("<esxdl name=\"custom\" EsdlXslTypeId=\"%d\" xmlns:tns=\"%s\" ns_uri=\"%s\">", xslId, tns ? tns : "urn:unknown", tns ? tns : "urn:unknown");
+        StringBuffer optsStr;
+        getOptsString(opts, optsStr);
+        xml.appendf("<opts>%s</opts>", optsStr.str());
         this->toXML( objs, xml, version, opts, flags );
         xml.append("</esxdl>");
 
@@ -260,6 +282,9 @@ void EsdlDefinitionHelper::toWSDL( IEsdlDefObjectIterator &objs, StringBuffer &x
         const char *tns = (ns) ? ns :params->queryProp("tnsParam");
 
         xml.appendf("<esxdl name=\"custom\" EsdlXslTypeId=\"%d\" xmlns:tns=\"%s\" ns_uri=\"%s\" version=\"%f\">", xslId, tns ? tns : "urn:unknown", tns ? tns : "urn:unknown", version);
+        StringBuffer optsStr;
+        getOptsString(opts, optsStr);
+        xml.appendf("<opts>%s</opts>", optsStr.str());
         this->toXML( objs, xml, version, opts, flags );
         xml.append("</esxdl>");
 

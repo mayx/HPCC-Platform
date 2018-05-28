@@ -15,21 +15,17 @@
     limitations under the License.
 ############################################################################## */
 
-#ifndef _LDAPSECURITY_HPP__
-#define _LDAPSECURITY_HPP__
+#pragma warning( disable : 4786 )
 
-#ifndef LDAPSECURITY_API
+#include "defaultsecuritymanager.hpp"
+#include "authmap.ipp"
 
-#ifndef LDAPSECURITY_EXPORTS
-    #define LDAPSECURITY_API DECL_IMPORT
-#else
-    #define LDAPSECURITY_API DECL_EXPORT
-#endif //LDAPSECURITY_EXPORTS
 
-#endif 
+//#ifdef _WIN32
+CDefaultSecurityManager::CDefaultSecurityManager(const char *serviceName, const char *config) : CBaseSecurityManager(serviceName,nullptr)
+{
+}
 
-extern "C" LDAPSECURITY_API ISecManager * newLdapSecManager(const char *serviceName, IPropertyTree &config);
-extern "C" LDAPSECURITY_API ISecManager * newDefaultSecManager(const char *serviceName, IPropertyTree &config);
-extern "C" LDAPSECURITY_API IAuthMap *newDefaultAuthMap(IPropertyTree* config);
-
-#endif
+CDefaultSecurityManager::CDefaultSecurityManager(const char *serviceName, IPropertyTree *config) : CBaseSecurityManager(serviceName,config)
+{
+}
