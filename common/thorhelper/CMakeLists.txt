@@ -47,6 +47,7 @@ set (    SRCS
          roxierow.cpp
          roxiehelper.cpp
          roxiedebug.cpp
+         ../../esp/platform/persistent.cpp
          
          commonext.hpp
          csvsplitter.hpp 
@@ -96,6 +97,7 @@ include_directories (
          ./../../testing/unittests
          ./../../system/tbb_sm/tbb/include
          ./../../system/security/shared
+         ./../../esp/platform
     )
 
 ADD_DEFINITIONS( -DTHORHELPER_EXPORTS -D_USRDLL )
