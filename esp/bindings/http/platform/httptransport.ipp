@@ -178,6 +178,7 @@ public:
 
     virtual bool isSoapMessage();
     virtual bool isFormSubmission();
+    virtual bool isJsonMessage();
     virtual IArrayOf<CEspCookie>& queryCookies()
     {
         return m_cookies;
@@ -352,6 +353,7 @@ class esp_http_decl CHttpResponse : public CHttpMessage
 private:
     StringAttr  m_status;
     unsigned int m_timeout;
+    bool m_respsent;
 
     virtual int parseFirstLine(char* oneline);
     virtual StringBuffer& constructHeaderBuffer(StringBuffer& headerbuf, bool inclLen);
@@ -392,6 +394,8 @@ public:
     void setTimeOut(unsigned int timeout);
     void setETagCacheControl(const char *etag, const char *contenttype);
     void CheckModifiedHTTPContent(bool modified, const char *lastModified, const char *etag, const char *contenttype, MemoryBuffer &content);
+    bool getRespsent() { return m_respsent; }
+    void setRespsent(bool sent) { m_respsent = sent; }
 };
 
 inline bool canRedirect(CHttpRequest &req)
