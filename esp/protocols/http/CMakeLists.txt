@@ -42,6 +42,7 @@ set (    SRCS
          ../../bindings/SOAP/Platform/soapmessage.cpp 
          ../../bindings/SOAP/Platform/soapservice.cpp 
          ../../bindings/SOAP/Platform/soapparam.cpp
+         ../../bindings/SOAP/xpp/xjx/xjxpp.cpp
          ../../platform/espcontext.cpp 
          ../../platform/espprotocol.cpp 
          ../../platform/espthread.cpp 

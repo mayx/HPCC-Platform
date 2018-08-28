@@ -141,7 +141,8 @@
               }).then(function(data){
                 dom.byId("resp_body").value = jsonPretty(data);
               }, function(err){
-                dom.byId("resp_body").value = err.toString() + ": \n\n" + err.response.text;
+                dom.byId("resp_body").value = jsonPretty(err.response.text);
+                alert(err.toString());
               });
             });
           });
