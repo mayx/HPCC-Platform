@@ -1247,6 +1247,7 @@ public:
         if(m_sockfd > 0)
         {
             ::closesocket(m_sockfd);
+            ::close(m_sockfd);
             m_sockfd = -1;
         }
         m_connected = false;
@@ -1273,6 +1274,7 @@ int HttpClient::sendStressRequest(StringBuffer& request, HttpStat* stat, Owned<C
 
     Owned<CSimpleSocket> sock;
     bool isPersistent = m_globals->getPropBool("isPersist", false);
+    int numPersistentRequests = m_globals->getPropInt("persistrequests", 0);
     if (isPersistent)
     {
         if (persistentSocket.get() == nullptr)
@@ -1392,7 +1394,7 @@ int HttpClient::sendStressRequest(StringBuffer& request, HttpStat* stat, Owned<C
         return -1;
     }
 
-    if (!isPersistent || shouldClose)
+    if (!isPersistent || shouldClose || numPersistentRequests == 1)
         sock->close();
 
     unsigned end = msTick();

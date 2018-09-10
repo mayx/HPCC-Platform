@@ -799,8 +799,8 @@ int main(int argc, char** argv)
             if(globals->hasProp("persistrequests") || globals->hasProp("persistpause"))
             {
                 printf("\nWarning: Will run the stress test with persistent connections, but parameters number-of-requests and pause-seconds will be ignored.\n\n");
-                globals->removeProp("persistrequests");
-                globals->removeProp("persistpause");
+                //globals->removeProp("persistrequests");
+                //globals->removeProp("persistpause");
             }
         }
     }
