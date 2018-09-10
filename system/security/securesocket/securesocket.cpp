@@ -423,6 +423,7 @@ public:
  **************************************************************************/
 CSecureSocket::CSecureSocket(ISocket* sock, SSL_CTX* ctx, bool verify, bool address_match, CStringSet* peers, int loglevel)
 {
+    SSL_CTX_set_session_id_context(ctx, (const unsigned char*)"HPCC", 4);
     m_socket.setown(sock);
     m_ssl = SSL_new(ctx);
 
@@ -441,6 +442,7 @@ CSecureSocket::CSecureSocket(ISocket* sock, SSL_CTX* ctx, bool verify, bool addr
 
 CSecureSocket::CSecureSocket(int sockfd, SSL_CTX* ctx, bool verify, bool address_match, CStringSet* peers, int loglevel)
 {
+    SSL_CTX_set_session_id_context(ctx, (const unsigned char*)"HPCC", 4);
     //m_socket.setown(sock);
     //m_socket.setown(ISocket::attach(sockfd));
     m_ssl = SSL_new(ctx);
