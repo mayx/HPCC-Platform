@@ -213,6 +213,15 @@ void CHttpClient::setTimeOut(unsigned int timeout)
 
 int CHttpClient::connect(StringBuffer& errmsg, bool forceNewConnection)
 {
+    if(m_socket)
+    {
+        if (m_isPersistentSocket)
+            m_persistentHandler->doneUsing(m_socket, false, 0);
+        m_socket->shutdown();
+        m_socket->close();
+        m_socket->Release();
+        m_socket = nullptr;
+    }
     SocketEndpoint ep;
 
     if(m_proxy.length() == 0)

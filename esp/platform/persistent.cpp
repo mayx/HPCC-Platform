@@ -57,6 +57,7 @@ private:
     PersistentLogLevel m_loglevel = PersistentLogLevel::PLogNormal;
     static int CurID;
     int m_id = 0;
+
 public:
     IMPLEMENT_IINTERFACE;
     CPersistentHandler(IPersistentSelectNotify* notify, int maxIdleTime, int maxReqs, PersistentLogLevel loglevel)
@@ -76,6 +77,7 @@ public:
             return;
         PERSILOG(PersistentLogLevel::PLogNormal, "PERSISTENT: adding socket %d to handler %d", sock->OShandle(), m_id);
         synchronized block(m_mutex);
+        TimeSection ts("XXXX add");
         m_selectHandler->add(sock, SELECTMODE_READ, this);
         m_infomap.setValue(sock, new CPersistentInfo(false, usTick()/1000, 0, ep));
     }
@@ -86,6 +88,7 @@ public:
             return;
         PERSILOG(PersistentLogLevel::PLogNormal, "PERSISTENT: Removing socket %d from handler %d", sock->OShandle(), m_id);
         synchronized block(m_mutex);
+        TimeSection ts("XXXX remove");
         Owned<CPersistentInfo>* val = m_infomap.getValue(sock);
         CPersistentInfo* info = nullptr;
         if (val)
@@ -99,6 +102,7 @@ public:
     virtual void doneUsing(ISocket* sock, bool keep, unsigned usesOverOne) override
     {
         synchronized block(m_mutex);
+        TimeSection ts("XXXX doneUsing");
         Owned<CPersistentInfo>* val = m_infomap.getValue(sock);
         CPersistentInfo* info = nullptr;
         if (val)
@@ -127,11 +131,16 @@ public:
     virtual Linked<ISocket> getAvailable(SocketEndpoint* ep = nullptr) override
     {
         synchronized block(m_mutex);
+        TimeSection ts("XXXX getAvailable");
+        int count = 0;
         for (auto si:m_infomap)
         {
+            count++;
             CPersistentInfo* info = si.getValue();
             if (info && !info->inUse && (ep == nullptr || (info->ep != nullptr && *(info->ep) == *ep)))
             {
+                TimeSection ts("XXXX getAvailable found");
+                DBGLOG("XXXX getAvailable tried %d", count);
                 ISocket* sock = *(ISocket**)(si.getKey());
                 if (sock)
                 {
