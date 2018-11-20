@@ -1774,7 +1774,8 @@ int HttpClient::sendRequest(StringBuffer& req, IFileIO* request_output, IFileIO*
         if(http_tracelevel >= 10)
             fprintf(m_logfile, "%s%s%s\n", sepstr, request.str(), sepstr);
 
-        socket->write(request.str(), request.length());
+        int sent = socket->write(request.str(), request.length());
+        fprintf(m_logfile, "Sent %d bytes to server\n", sent);
 
         StringBuffer buf;
         StringBuffer* bufptr;
@@ -1835,6 +1836,10 @@ int HttpClient::sendRequest(StringBuffer& req, IFileIO* request_output, IFileIO*
 
         if(http_tracelevel >= 5)
             fprintf(m_logfile, "%s", sepstr);
+
+        Sleep(pausemillisecs);
+        continue;
+
         if(isPersist && iter < numReq - 1)
         {
             Owned<CSocketChecker> checker = new CSocketChecker(socket.get());
@@ -1938,6 +1943,12 @@ int SimpleServer::start()
         }
         else
         {
+            m_persistentSocket->shutdown(SHUTDOWN_READ);
+            m_persistentSocket->close();
+            Sleep(2000);
+            m_persistentSocket.clear();
+            continue;
+
             Owned<CSocketChecker> checker = new CSocketChecker(m_persistentSocket.get());
             int ret = checker->waitAndCheck(WAIT_FOREVER);
             if(ret == 0)
