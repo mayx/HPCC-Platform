@@ -267,7 +267,9 @@ public:
         createMonitoringTemplate(monTemplate, depTree, optMethod);
 
         VStringBuffer templatefile("monitor_template_%s.xml", optMethod.str());
-        saveAsFile(".", templatefile, monTemplate);
+        if (!optOutDirPath.isEmpty())
+            recursiveCreateDirectory(optOutDirPath);
+        saveAsFile(optOutDirPath.isEmpty()?".":optOutDirPath, templatefile, monTemplate);
         return 0;
     }
 
@@ -971,8 +973,12 @@ public:
 
         xml.append("\n</esxdl>");
 
+        if (!optOutDirPath.isEmpty())
+            recursiveCreateDirectory(optOutDirPath);
+        StringAttr outdir(optOutDirPath.isEmpty()?".":optOutDirPath);
+
         VStringBuffer filename("esdl_rollup_monitor_%s.xml", optMethod.str());
-        saveAsFile(".", filename, xml);
+        saveAsFile(outdir, filename, xml);
 
         Owned<IPropertyTree> depTree = createPTreeFromXMLString(xml, ipt_ordered);
 
@@ -1037,7 +1043,7 @@ public:
         toXML(depTree, xml.clear()); //refresh changes
 
         filename.setf("%s_preprocess.xml", optMethod.str());
-        saveAsFile(".", filename, xml);
+        saveAsFile(outdir, filename, xml);
 
         Owned<IXslProcessor> xslp = getXslProcessor();
         Owned<IXslTransform> xform = xslp->createXslTransform();
@@ -1057,7 +1063,7 @@ public:
 
         ecl.appendf("STRING monitoringTemplate :='%s';\nBOOLEAN IncludeTemplate := false : STORED('IncludeTemplate');\nIF (IncludeTemplate, OUTPUT(monitoringTemplate, NAMED('MonitoringTemplate')));\nOUTPUT(HASHMD5(monitoringTemplate), NAMED('Hash'));\n", escapedTemplate.str());
         filename.setf("Monitor_ActiveTemplate_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
         if (optOutputCategoryList)
             xform->setParameter("listCategories", "true()");
@@ -1073,14 +1079,14 @@ public:
         xform->setParameter("skipResponseTag", "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorRoxie_create_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
         xform->setParameter("platform", "'esp'");
         xform->setParameter("responseType", stringvar.setf("'%s'", esp_resp_type.str()));
         xform->setParameter("skipResponseTag", skipOutputResponseTag ? "true()" : "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorESP_create_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
 //-------Monitor::Run---------
         xform->setParameter("diffaction", "'Run'");
@@ -1090,14 +1096,14 @@ public:
         xform->setParameter("skipResponseTag", "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorRoxie_run_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
         xform->setParameter("platform", "'esp'");
         xform->setParameter("responseType", stringvar.setf("'%s'", esp_resp_type.str()));
         xform->setParameter("skipResponseTag", skipOutputResponseTag ? "true()" : "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorESP_run_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
 //-------Monitor::Demo---------
         xform->setParameter("diffaction", "'Demo'");
@@ -1107,14 +1113,14 @@ public:
         xform->setParameter("skipResponseTag", "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorRoxie_demo_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
         xform->setParameter("platform", "'esp'");
         xform->setParameter("responseType", stringvar.setf("'%s'", esp_resp_type.str()));
         xform->setParameter("skipResponseTag", skipOutputResponseTag ? "true()" : "false()");
         xform->transform(ecl.clear());
         filename.setf("MonitorESP_demo_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
 //-------Compare---------
         xform->setParameter("diffmode", "'Compare'");
@@ -1122,7 +1128,7 @@ public:
         xform->setParameter("skipResponseTag", "false()");
         xform->transform(ecl.clear());
         filename.setf("Compare_%s.ecl", optMethod.str());
-        saveAsFile(".", filename, ecl);
+        saveAsFile(outdir, filename, ecl);
 
         return 0;
     }
