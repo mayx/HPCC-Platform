@@ -877,6 +877,39 @@ private:
         SSL_CTX_set_session_id_context(m_ctx, (const unsigned char*)"hpccsystems", 11);
     }
 
+    int checkCert(const char* certfile)
+    {
+        X509 *cert = nullptr;
+        EVP_PKEY *pkey = nullptr;
+        BIO* certbio = BIO_new(BIO_s_file());
+
+        if (BIO_read_filename(certbio, certfile) <= 0)
+            throw MakeStringException(-1, "Failed to read certificate file %s", certfile);
+        if ((cert = PEM_read_bio_X509(certbio, nullptr, 0, nullptr)) == nullptr)
+            throw MakeStringException(-1, "Failed to parse certificate file %s", certfile);
+        if ((pkey = X509_get_pubkey(cert)) == nullptr)
+            throw MakeStringException(-1, "Failed to get public key from certificate");
+        int keysize = EVP_PKEY_bits(pkey);
+        int keytype = EVP_PKEY_base_id(pkey);
+        switch (keytype)
+        {
+            case EVP_PKEY_RSA:
+                DBGLOG("Using %d bit RSA public key", keysize);
+                break;
+            case EVP_PKEY_EC:
+                DBGLOG("Using %d bit EC public key", keysize);
+                break;
+            default:
+                DBGLOG("Using %d bit non-RSA/EC public key", keysize);
+                break;
+        }
+
+        EVP_PKEY_free(pkey);
+        X509_free(cert);
+        BIO_free_all(certbio);
+        return 0;
+    }
+
 public:
     IMPLEMENT_IINTERFACE;
     CSecureSocketContext(SecureSocketType sockettype)
@@ -932,6 +965,8 @@ public:
             ERR_error_string_n(ERR_get_error(), errbuf, 512);
             throw MakeStringException(-1, "error loading certificate file %s - %s", certfile, errbuf);
         }
+
+        checkCert(certfile);
 
         if(SSL_CTX_use_PrivateKey_file(m_ctx, privkeyfile, SSL_FILETYPE_PEM) <= 0)
         {
@@ -993,6 +1028,7 @@ public:
                 ERR_error_string_n(ERR_get_error(), errbuf, 512);
                 throw MakeStringException(-1, "error loading certificate file %s - %s", certfile, errbuf);
             }
+            checkCert(certfile);
         }
 
         const char* privkeyfile = config->queryProp("privatekey");
