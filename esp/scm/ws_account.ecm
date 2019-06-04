@@ -29,18 +29,12 @@ ESPresponse [exceptions_inline] UpdateUserInputResponse
 
 ESPrequest MyAccountRequest
 {
+    string Input;
 };
 
 ESPresponse [exceptions_inline] MyAccountResponse
 {
-    string username;
-    string firstName;
-    string lastName;
-    string passwordExpiration;
-    int    passwordDaysRemaining;
-    [min_ver("1.01")] int passwordExpirationWarningDays;
-    [min_ver("1.02")] string employeeID;
-    [min_ver("1.03")] string distinguishedName;
+    string Output;
 };
 
 

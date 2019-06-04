@@ -150,6 +150,9 @@ bool Cws_accountEx::onUpdateUserInput(IEspContext &context, IEspUpdateUserInputR
 
 bool Cws_accountEx::onMyAccount(IEspContext &context, IEspMyAccountRequest &req, IEspMyAccountResponse &resp)
 {
+    resp.setOutput(req.getInput());
+    return true;
+    /*
     try
     {
         ISecUser* userInContext = context.queryUser();
@@ -202,6 +205,7 @@ bool Cws_accountEx::onMyAccount(IEspContext &context, IEspMyAccountRequest &req,
         FORWARDEXCEPTION(context, e, ECLWATCH_INTERNAL_ERROR);
     }
     return true;
+    */
 }
 
 
