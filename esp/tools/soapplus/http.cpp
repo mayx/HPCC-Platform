@@ -1807,6 +1807,13 @@ int HttpClient::sendRequest(StringBuffer& req, IFileIO* request_output, IFileIO*
 
         socket->write(request.str(), request.length());
 
+        DBGLOG("Sleeping 5 seconds");
+        Sleep(5000);
+        DBGLOG("Close socket");
+        socket->close();
+        DBGLOG("Sleeping 10 seconds");
+        Sleep(10000);
+
         StringBuffer buf;
         StringBuffer* bufptr;
         if(outputbuf)
@@ -1959,6 +1966,7 @@ int SimpleServer::start()
     {
         if(m_iterations != -1 && seq >= m_iterations)
             break;
+        fprintf(m_logfile, "\n>>Waiting for requests from client...\n");
 
         Owned<ISocket> client;
         if(!m_isPersist || m_persistentSocket.get() == nullptr)
@@ -2023,10 +2031,10 @@ int SimpleServer::start()
                 client->write(m_roxie_response.str(), m_roxie_response.length());
             
             replyLen = 0;
-            client->write((void*)&replyLen, 4);
+            int ret = client->write((void*)&replyLen, 4);
             
             if(http_tracelevel >= 10)
-                fprintf(m_logfile, "\n>>sent back response - \n");
+                fprintf(m_logfile, "\n>>sent back response (returned %d) - \n", ret);
             if(http_tracelevel >= 10)
                 fprintf(m_logfile, "%s%s%s\n", sepstr, m_roxie_response.str(), sepstr);
             fflush(m_logfile);
@@ -2117,6 +2125,10 @@ int SimpleServer::start()
                 }
             }
 
+            int lenWritten = 0;
+            DBGLOG("Sleeping 1 seconds");
+            Sleep(1000);
+            DBGLOG("Sending response...");
             if(abortEarly)
             {
                 if(m_headerlen == 0)
@@ -2133,21 +2145,25 @@ int SimpleServer::start()
                             m_headerlen = hend - m_response.str() + 2;
                     }
                 }
-
                 int len = m_headerlen + (m_response.length() - m_headerlen)/2;
-                client->write(m_response.str(), len);
+                lenWritten = client->write(m_response.str(), len);
                 continue;
             }
             else
-                client->write(m_response.str(), m_response.length());
+                lenWritten = client->write(m_response.str(), m_response.length());
 
             if(http_tracelevel >= 10)
-                fprintf(m_logfile, "\n>>sent back response - \n");
+                fprintf(m_logfile, "\n>>sent back response (len written %d) - \n", lenWritten);
             if(http_tracelevel >= 10)
                 fprintf(m_logfile, "%s%s%s\n", sepstr, m_response.str(), sepstr);
             fflush(m_logfile);
         }
-
+        //DBGLOG("Sleeping 5 seconds");
+        Sleep(5000);
+        //DBGLOG("trying to write...");
+        //client->write("test", 4);
+        //char test[4];
+        //client->read(test, 4);
         if(m_writeToFiles)
         {
             StringBuffer req_outfname, resp_outfname;
@@ -2206,8 +2222,10 @@ int SimpleServer::start()
 
         if(!m_isPersist)
         {
+            fprintf(m_logfile, "Closing socket...\n");
             client->shutdown();
             client->close();
+            fprintf(m_logfile, "Closed socket\n");
         }
         seq++;
     }

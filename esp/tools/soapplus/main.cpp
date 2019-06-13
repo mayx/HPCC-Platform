@@ -843,6 +843,7 @@ int main(int argc, char** argv)
     {
         printf("Unknown exception\n");
     }
+    DBGLOG("errno=%d", errno);
     releaseAtoms();
 
     return 0;
