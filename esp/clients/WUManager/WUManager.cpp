@@ -50,7 +50,7 @@ void diaplaySyntax()
     printf("            aborted\n");
     printf("            blocked\n");
     printf("Example:\n");
-    printf("    WUManager EXPORT http://server:8010/WsWorkunits Mylocalfile.xml /UserName:jsmith /Password:12345 /StartDate:20030701");
+    printf("    WUManager EXPORT https://server:8010/WsWorkunits Mylocalfile.xml /UserName:jsmith /Password:12345 /StartDate:20030701");
 }
 
 int main(int argc, char* argv[])

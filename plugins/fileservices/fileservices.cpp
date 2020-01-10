@@ -2086,7 +2086,7 @@ FILESERVICES_API char *  FILESERVICES_CALL fsVerifyFile(ICodeContext *ctx,const 
 
 /*
 varstring RemotePull(
-                      const varstring remoteEspFsURL,                   // remote ESP URL e.g. 'http://10.173.34.60:8010/FileSpray'
+                      const varstring remoteEspFsURL,                   // remote ESP URL e.g. 'https://10.173.34.60:8010/FileSpray'
                       const varstring sourceLogicalName,                // local
                       const varstring destinationGroup,                 // remote
                       const varstring destinationLogicalName,           // remote (NB full name required)

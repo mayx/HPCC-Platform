@@ -562,7 +562,7 @@ class Regression:
             if self.config.useSsl.lower() == 'true':
                 url = "https://"
             else:
-                url = "http://"
+                url = "https://"
             url += self.config.espIp + ":" + self.config.espSocket
             url += "/?Widget=WUDetailsWidget&Wuid="
             url += wuid

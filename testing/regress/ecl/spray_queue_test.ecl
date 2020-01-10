@@ -23,7 +23,7 @@ import Std.File AS FileServices;
 import $.setup;
 
 dropzonePath := '/var/lib/HPCCSystems/mydropzone/' : STORED('dropzonePath');
-espIpPort := 'http://127.0.0.1:8010/FileSpray' : STORED('espIpPort');
+espIpPort := 'https://127.0.0.1:8010/FileSpray' : STORED('espIpPort');
 prefix := setup.Files(false, false).QueryFilePrefix;
 sprayDestGroup := thorlib.group();
 

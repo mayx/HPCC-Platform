@@ -432,7 +432,7 @@ public:
     }
     void copy(const char *srcAddress, const char *srcTarget, const char *name, unsigned updateFlags, StringArray &filesNotFound)
     {
-        VStringBuffer url("http://%s/WsPackageProcess", (srcAddress && *srcAddress) ? srcAddress : ".:8010");
+        VStringBuffer url("https://%s/WsPackageProcess", (srcAddress && *srcAddress) ? srcAddress : ".:8010");
         Owned<IClientWsPackageProcess> client = createWsPackageProcessClient();
         StringBuffer user, pw;
         if (userdesc)

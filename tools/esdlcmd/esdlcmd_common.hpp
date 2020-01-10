@@ -305,7 +305,7 @@ public:
         if(server == NULL)
             throw MakeStringException(-1, "Server url not specified");
 
-        VStringBuffer url("http://%s:%s/WsESDLConfig/?ver_=%s", server, port, VERSION_FOR_ESDLCMD);
+        VStringBuffer url("https://%s:%s/WsESDLConfig/?ver_=%s", server, port, VERSION_FOR_ESDLCMD);
 
         IClientWsESDLConfig * esdlConfigClient = createWsESDLConfigClient();
         esdlConfigClient->addServiceUrl(url.str());

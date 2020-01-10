@@ -32,6 +32,7 @@
 #include "http/platform/httpprot.hpp"
 #include "http/platform/httptransport.ipp"
 #include "http/platform/httpservice.hpp"
+#include "http/platform/httpsecurecontext.hpp"
 #include "SOAP/Platform/soapservice.hpp"
 
 //openssl
@@ -312,6 +313,44 @@ void CSecureHttpProtocol::init(IPropertyTree * cfg, const char * process, const 
     }
 }
 
+class HttpRedirect : public Thread
+{
+private:
+    Owned<ISocket> m_sock;
+
+public:
+    HttpRedirect(ISocket* sock)
+    {
+        m_sock.setown(sock);
+    }
+    int run()
+    {
+        Owned<CHttpRequest> req = new CHttpRequest(*m_sock.get());
+        req->setOwnContext(createEspContext(createHttpSecureContext(req.get())));
+        req->receive(nullptr);
+        StringBuffer url("https://");
+        url.append(req->queryHost());
+        int port = req->getPort();
+        if (port != 443)
+            url.appendf(":%d", port);
+        url.append(req->queryPath());
+        StringBuffer respbody;
+        respbody.appendf("<html>\n<head><title>Permanent Redirect</title><head>\n"
+                "<body>\n<p>Only https is supported, please try: <a href=\"%s\">%s</a></p>\n</body>\n</html>\n",
+                url.str(), url.str());
+        StringBuffer respbuf;
+        respbuf.appendf("HTTP/1.1 308 Permanent Redirect\r\nLocation: %s\r\n"
+                "Content-Type: text/html; charset=UTF-8\r\nContent-Length: %d\r\n\r\n%s",
+                url.str(), respbody.length(), respbody.str());
+        m_sock->write(respbuf.str(), respbuf.length());
+        m_sock->close();
+        return 0;
+    }
+    virtual ~HttpRedirect()
+    {
+    }
+};
+
 bool CSecureHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersistentHandler* persistentHandler, bool shouldClose)
 {
     try
@@ -327,7 +366,35 @@ bool CSecureHttpProtocol::notifySelected(ISocket *sock,unsigned selected, IPersi
         {
             Owned<ISocket>accepted;
             if(persistentHandler == nullptr)
+            {
                 accepted.setown(sock->accept());
+                if (accepted.get() != nullptr)
+                {
+                    char method[5];
+                    size32_t size_read = 0;
+                    try
+                    {
+                        accepted->peektms(method, 4, 4, size_read, 50);
+                    }
+                    catch (IException* e)
+                    {
+                        e->Release();
+                    }
+                    if (size_read == 4 && (strncmp(method, "GET", 3) == 0 || strncmp(method, "POST", 4) == 0 || strncmp(method, "HEAD", 4) == 0))
+                    {
+                        if (method[3] == ' ' || method[3] == '\t')
+                            method[3] = '\0';
+                        else
+                            method[4] = '\0';
+                        char peername[256];
+                        int port = accepted->peer_name(peername, 256);
+                        DBGLOG("Expecting HTTPS, but got HTTP %s connection from %s:%d on new socket, redirecting to HTTPS.", method, peername, port);
+                        Owned<HttpRedirect> redirect = new HttpRedirect(accepted.getLink());
+                        redirect->start();
+                        return false;
+                    }
+                }
+            }
             else
                 accepted.set(sock);
             if (accepted.get() != NULL)

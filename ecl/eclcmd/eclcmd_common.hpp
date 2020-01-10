@@ -51,8 +51,8 @@ typedef IEclCommand *(*EclCommandFactory)(const char *cmdname);
 #define ECLOPT_SERVER_INI "eclWatchIP"
 #define ECLOPT_SERVER_ENV "ECL_WATCH_IP"
 #define ECLOPT_SERVER_DEFAULT "."
-#define ECLOPT_SSL "--ssl"
-#define ECLOPT_SSL_S "-ssl"
+#define ECLOPT_NOSSL "--nossl"
+#define ECLOPT_NOSSL_S "-nossl"
 
 #define ECLOPT_PORT "--port"
 #define ECLOPT_PORT_INI "eclWatchPort"
@@ -245,7 +245,7 @@ class EclCmdCommon : implements IEclCommand, public CInterface
 {
 public:
     IMPLEMENT_IINTERFACE;
-    EclCmdCommon(bool _usesESP=true) : optVerbose(false), optSSL(false), usesESP(_usesESP)
+    EclCmdCommon(bool _usesESP=true) : optVerbose(false), optNoSSL(false), usesESP(_usesESP)
     {
     }
     virtual eclCmdOptionMatchIndicator matchCommandLineOption(ArgvIterator &iter, bool finalAttempt=false);
@@ -260,7 +260,7 @@ public:
         if (usesESP)
             fprintf(stdout,
                 "   -s, --server=<ip>      IP of server running ecl services (eclwatch)\n"
-                "   -ssl, --ssl            Use SSL to secure the connection to the server\n"
+                "   -nossl, --nossl        Do not use SSL to secure the connection to the server\n"
                 "   --port=<port>          ECL services port\n"
                 "   -u, --username=<name>  Username for accessing ecl services\n"
                 "   -pw, --password=<pw>   Password for accessing ecl services\n"
@@ -276,7 +276,7 @@ public:
     unsigned optWaitConnectMs = 0;
     unsigned optWaitReadSec = 0;
     bool optVerbose;
-    bool optSSL;
+    bool optNoSSL;
     bool usesESP;
 };
 
@@ -394,7 +394,7 @@ template <class Iface> Iface *intClient(Iface *client, EclCmdCommon &cmd, const 
     if(cmd.optServer.isEmpty())
         throw MakeStringException(-1, "Server IP not specified");
 
-    EclCmdURL url(service, cmd.optServer, cmd.optPort, cmd.optSSL, urlTail);
+    EclCmdURL url(service, cmd.optServer, cmd.optPort, !cmd.optNoSSL, urlTail);
     client->addServiceUrl(url.str());
     if (cmd.optUsername.length())
         client->setUsernameToken(cmd.optUsername, cmd.optPassword, NULL);

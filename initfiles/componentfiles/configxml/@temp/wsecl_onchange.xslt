@@ -44,7 +44,7 @@
 <xsl:template match="Properties/@defaultSecurePort">
     <xsl:attribute name="defaultSecurePort">
         <xsl:choose>
-            <xsl:when test="string(/EspService/@eclServer)!=''">18002</xsl:when>
+            <xsl:when test="string(/EspService/@eclServer)!=''">8002</xsl:when>
             <xsl:otherwise>18022</xsl:otherwise>
         </xsl:choose>
     </xsl:attribute>

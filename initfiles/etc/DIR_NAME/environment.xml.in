@@ -274,7 +274,7 @@
              name="s1"
              netAddress="."/>
    <HTTPS acceptSelfSigned="true"
-          CA_Certificates_Path="ca.pem"
+          CA_Certificates_Path="@HOME_DIR@/@RUNTIME_USER@/certificate/cacert.pem"
           certificateFileName="@HOME_DIR@/@RUNTIME_USER@/certificate/certificate.pem"
           city=""
           country="US"
@@ -298,7 +298,7 @@
                defaultServiceVersion=""
                name="myespsmc"
                port="8010"
-               protocol="http"
+               protocol="https"
                resourcesBasedn="ou=SMC,ou=EspServices,ou=ecl"
                service="EclWatch"
                type=""
@@ -429,7 +429,7 @@
                defaultServiceVersion=""
                name="myws_ecl"
                port="8002"
-               protocol="http"
+               protocol="https"
                resourcesBasedn="ou=WsEcl,ou=EspServices,ou=ecl"
                service="ws_ecl"
                type=""
@@ -451,7 +451,7 @@
                defaultServiceVersion=""
                name="myws_sqlbinding"
                port="8510"
-               protocol="http"
+               protocol="https"
                resourcesBasedn="ou=WsSql,ou=EspServices,ou=ecl"
                service="ws_sql"
                type=""
@@ -482,7 +482,7 @@
    <EspControlBinding defaultForPort="true"
                defaultServiceVersion=""
                name="espcontrol"
-               protocol="http"
+               protocol="https"
                resourcesBasedn="ou=WsEspControl,ou=EspServices,ou=ecl"
                service="espcontrol"
                type=""
@@ -502,7 +502,7 @@
                defaultServiceVersion=""
                name="DESDLBindingTemplate"
                port="0"
-               protocol="http"
+               protocol="https"
                resourcesBasedn="ou=DynamicESDL,ou=EspServices,ou=ecl"
                service="DESDLServiceTemplate"
                type=""
@@ -651,7 +651,7 @@
               ZAPEmailMaxAttachmentSize="">
    <Properties defaultPort="8010"
                defaultResourcesBasedn="ou=SMC,ou=EspServices,ou=ecl"
-               defaultSecurePort="18010"
+               defaultSecurePort="8010"
                type="WsSMC">
     <AuthenticateFeature description="Access to SMC service"
                          path="SmcAccess"
@@ -788,7 +788,7 @@
    <Properties bindingType="ws_eclSoapBinding"
                defaultPort="8002"
                defaultResourcesBasedn="ou=WsEcl,ou=EspServices,ou=ecl"
-               defaultSecurePort="18002"
+               defaultSecurePort="8002"
                plugin="ws_ecl"
                type="ws_ecl">
     <AuthenticateFeature description="Access to WS ECL service"
@@ -810,7 +810,7 @@
    <Properties bindingType="ws_sqlSoapBinding"
                defaultPort="8510"
                defaultResourcesBasedn="ou=WsSql,ou=EspServices,ou=ecl"
-               defaultSecurePort="18510"
+               defaultSecurePort="8510"
                plugin="ws_sql"
                type="ws_sql">
     <Authenticate access="Read"
@@ -842,7 +842,7 @@
    <Properties bindingType="EsdlBinding"
                defaultPort="8043"
                defaultResourcesBasedn="ou=DynamicESDL,ou=EspServices,ou=ecl"
-               defaultSecurePort="18043"
+               defaultSecurePort="8043"
                plugin="esdl_svc_engine"
                type="DynamicESDL"/>
   </EspService>
@@ -1039,7 +1039,7 @@
              schema="espsmcservice.xsd">
     <Properties defaultPort="8010"
                 defaultResourcesBasedn="ou=SMC,ou=EspServices,ou=ecl"
-                defaultSecurePort="18010"
+                defaultSecurePort="8010"
                 type="WsSMC">
      <AuthenticateFeature description="Access to SMC service"
                           path="SmcAccess"
@@ -1222,7 +1222,7 @@
     <Properties bindingType="ws_eclSoapBinding"
                 defaultPort="8002"
                 defaultResourcesBasedn="ou=WsEcl,ou=EspServices,ou=ecl"
-                defaultSecurePort="18002"
+                defaultSecurePort="8002"
                 plugin="ws_ecl"
                 type="ws_ecl">
      <AuthenticateFeature description="Access to WS ECL service"
@@ -1245,7 +1245,7 @@
     <Properties bindingType="EsdlBinding"
                 defaultPort="8043"
                 defaultResourcesBasedn="ou=EspServices,ou=ecl"
-                defaultSecurePort="18043"
+                defaultSecurePort="8043"
                 plugin="esdl_svc_engine"
                 type="DynamicESDL"/>
    </BuildSet>
@@ -1270,7 +1270,7 @@
     <Properties bindingType="loggingservice_binding"
                 defaultPort="8146"
                 defaultResourcesBasedn="ou=EspServices,ou=ecl"
-                defaultSecurePort="18146"
+                defaultSecurePort="8146"
                 plugin="wslogging"
                 type="wslogging">
      <AuthenticateFeature description="Access to WS Logging service"

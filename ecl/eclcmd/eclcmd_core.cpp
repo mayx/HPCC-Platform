@@ -33,7 +33,7 @@ size32_t getMaxRequestEntityLength(EclCmdCommon &cmd)
     if(cmd.optServer.isEmpty())
         throw MakeStringException(-1, "Server IP not specified");
 
-    EclCmdURL url("?config_", cmd.optServer, cmd.optPort, cmd.optSSL);
+    EclCmdURL url("?config_", cmd.optServer, cmd.optPort, !cmd.optNoSSL);
     Owned<IHttpClientContext> httpCtx = getHttpClientContext();
 
     StringBuffer request; //empty
@@ -1936,7 +1936,7 @@ public:
             urlTail.append("&IncludeThorSlaveLog=on");
         if (!optProblemDesc.isEmpty())
             urlTail.append("&ProblemDescription=").append(optProblemDesc.get());
-        EclCmdURL eclCmdURL("WsWorkunits", !streq(optServer, ".") ? optServer : "localhost", optPort, optSSL, urlTail.str());
+        EclCmdURL eclCmdURL("WsWorkunits", !streq(optServer, ".") ? optServer : "localhost", optPort, !optNoSSL, urlTail.str());
 
         //Create CURL command
         StringBuffer curlCommand("curl -v -X post");

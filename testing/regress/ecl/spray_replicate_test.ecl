@@ -23,7 +23,7 @@ import std.system.thorlib;
 import Std.File AS FileServices;
 
 dropzonePath := '/var/lib/HPCCSystems/mydropzone/' : STORED('dropzonePath');
-espIpPort := 'http://127.0.0.1:8010/FileSpray' : STORED('espIpPort');
+espIpPort := 'https://127.0.0.1:8010/FileSpray' : STORED('espIpPort');
 engine := thorlib.platform();
 prefix := '~regress::' + engine + '::' + WORKUNIT + '::';
 

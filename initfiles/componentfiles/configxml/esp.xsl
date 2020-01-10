@@ -55,7 +55,7 @@
     <xsl:variable name="controlPort">
         <xsl:choose>
             <xsl:when test="string($controlPortSetting) != ''"><xsl:value-of select="$controlPortSetting"/></xsl:when>
-            <xsl:when test="string($espBindingProtocol) = 'https'">18010</xsl:when>
+            <xsl:when test="string($espBindingProtocol) = 'https'">8010</xsl:when>
             <xsl:when test="string($espBindingProtocol) = 'http'">8010</xsl:when>
             <xsl:otherwise>0</xsl:otherwise><!-- the WSESPControl will not be in esp.xml if controlPort = 0-->
         </xsl:choose>

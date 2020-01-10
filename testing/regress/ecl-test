@@ -398,7 +398,7 @@ class RegressMain:
 
             self.args.setupExtraX.append('dropzoneIp=' + self.config.dropzoneIp )
             self.args.setupExtraX.append('dropzonePath=' + self.config.dropzonePath )
-            espFileSprayUrl = "http://" + self.config.espIp + ":" + self.config.espSocket + "/" + self.config.espFileSprayService
+            espFileSprayUrl = "https://" + self.config.espIp + ":" + self.config.espSocket + "/" + self.config.espFileSprayService
             self.args.setupExtraX.append('espFileSprayUrl=' + espFileSprayUrl )
             self.args.setupExtraX.append('espIp=' + self.config.espIp )
 

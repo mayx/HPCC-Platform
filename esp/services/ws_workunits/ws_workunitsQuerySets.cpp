@@ -84,7 +84,7 @@ static IClientWsWorkunits *ensureWsWorkunitsClient(IClientWsWorkunits *ws, IEspC
         return LINK(ws);
     StringBuffer url;
     if (netAddress && *netAddress)
-        url.appendf("http://%s%s/WsWorkunits", netAddress, (!strchr(netAddress, ':')) ? ":8010" : "");
+        url.appendf("https://%s%s/WsWorkunits", netAddress, (!strchr(netAddress, ':')) ? ":8010" : "");
     else
     {
         if (!ctx)
@@ -191,7 +191,7 @@ bool copyWULogicalFiles(IEspContext &context, IConstWorkUnit &cw, const char *cl
     if (copyLocal)
     {
         fs.setown(createFileSprayClient());
-        VStringBuffer url("http://.:%d/FileSpray", 8010);
+        VStringBuffer url("https://.:%d/FileSpray", 8010);
         fs->addServiceUrl(url.str());
     }
 
@@ -2441,7 +2441,7 @@ IPropertyTree *fetchRemoteQuerySetInfo(IEspContext *context, const char *srcAddr
     if (!srcAddress || !*srcAddress || !srcTarget || !*srcTarget)
         return NULL;
 
-    VStringBuffer url("http://%s%s/WsWorkunits/WUQuerysetDetails.xml?ver_=1.51&QuerySetName=%s&FilterType=All", srcAddress, (!strchr(srcAddress, ':')) ? ":8010" : "", srcTarget);
+    VStringBuffer url("https://%s%s/WsWorkunits/WUQuerysetDetails.xml?ver_=1.51&QuerySetName=%s&FilterType=All", srcAddress, (!strchr(srcAddress, ':')) ? ":8010" : "", srcTarget);
 
     Owned<IHttpClientContext> httpCtx = getHttpClientContext();
     Owned<IHttpClient> httpclient = httpCtx->createHttpClient(NULL, url);

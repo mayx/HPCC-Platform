@@ -154,6 +154,7 @@ public:
     virtual int wait_read(unsigned timeoutms);
     virtual void read(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read,unsigned timeoutsecs);
     virtual void readtms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read, unsigned timeoutms);
+    virtual void peektms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read, unsigned timeoutms) { UNIMPLEMENTED; }
     virtual size32_t write(void const* buf, size32_t size);
     virtual size32_t writetms(void const* buf, size32_t size, unsigned timeoutms=WAIT_FOREVER);
 

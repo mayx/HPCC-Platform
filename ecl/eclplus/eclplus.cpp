@@ -34,7 +34,7 @@ IClientWsWorkunits * createWorkunitsClient(IProperties * _globals)
     
     StringBuffer url;
     if(Utils::strncasecmp(eclwatch, "http://", 7) != 0 && Utils::strncasecmp(eclwatch, "https://", 8) != 0)
-        url.append("http://");
+        url.append("https://");
     url.append(eclwatch);
     if(strchr(url.str() + 7, ':') == NULL)
         url.append(":8010/");

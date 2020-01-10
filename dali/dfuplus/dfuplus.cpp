@@ -249,7 +249,7 @@ CDfuPlusHelper::CDfuPlusHelper(IProperties* _globals,   CDfuPlusMessagerIntercep
 
     StringBuffer url;
     if(Utils::strncasecmp(server, "http://", 7) != 0 && Utils::strncasecmp(server, "https://", 8) != 0)
-        url.append("http://");
+        url.append("https://");
     url.append(server);
 
     if(strchr(url.str() + 7, ':') == nullptr)

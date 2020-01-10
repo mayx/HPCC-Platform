@@ -419,6 +419,7 @@ public:
 
     void        read(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read,unsigned timeoutsecs);
     void        readtms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read, unsigned timedelaysecs);
+    void        peektms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read, unsigned timedelaysecs);
     void        read(void* buf, size32_t size);
     size32_t    write(void const* buf, size32_t size);
     size32_t    writetms(void const* buf, size32_t size, unsigned timeoutms=WAIT_FOREVER);
@@ -507,6 +508,7 @@ private:
         else
             return 0;
     }
+    void        readtms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read, unsigned timedelaysecs, bool isPeek);
 };
 
 CriticalSection CSocket::crit;
@@ -1763,6 +1765,18 @@ int CSocket::wait_write(unsigned timeout)
 void CSocket::readtms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read,
                      unsigned timeoutms)
 {
+    readtms(buf, min_size, max_size, size_read, timeoutms, false);
+}
+
+void CSocket::peektms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read,
+                     unsigned timeoutms)
+{
+    readtms(buf, min_size, max_size, size_read, timeoutms, true);
+}
+
+void CSocket::readtms(void* buf, size32_t min_size, size32_t max_size, size32_t &size_read,
+                     unsigned timeoutms, bool isPeek)
+{
     if (timeoutms == WAIT_FOREVER) {
         read(buf,min_size, max_size, size_read,WAIT_FOREVER);
         return;
@@ -1797,11 +1811,11 @@ EintrRetry:
         if (sockmode==sm_udp_server) { // udp server        
             DEFINE_SOCKADDR(u);
             socklen_t ul=sizeof(u);
-            rc = recvfrom(sock, (char*)buf + size_read, max_size - size_read, 0, &u.sa,&ul);
+            rc = recvfrom(sock, (char*)buf + size_read, max_size - size_read, isPeek?MSG_PEEK:0, &u.sa,&ul);
             getSockAddrEndpoint(u,ul,returnep);
         }
         else {
-            rc = recv(sock, (char*)buf + size_read, max_size - size_read, 0);
+            rc = recv(sock, (char*)buf + size_read, max_size - size_read, isPeek?MSG_PEEK:0);
         }
         if (rc < 0) {
             int err = ERRNO();
@@ -1972,8 +1986,6 @@ EintrRetry:
     STATS.readtime+=usTick()-startt;
 
 }
-
-
 
 size32_t CSocket::write(void const* buf, size32_t size)
 {
