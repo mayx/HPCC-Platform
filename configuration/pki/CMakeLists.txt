@@ -1,5 +1,5 @@
 ################################################################################
-#    HPCC SYSTEMS software Copyright (C) 2018 HPCC Systems.
+#    HPCC SYSTEMS software Copyright (C) 2012 HPCC Systems®.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -14,6 +14,15 @@
 #    limitations under the License.
 ################################################################################
 
-HPCC_ADD_SUBDIRECTORY (configmgr)
-HPCC_ADD_SUBDIRECTORY (cli)
-HPCC_ADD_SUBDIRECTORY (pki)
+# Component: pki
+#####################################################
+# Description:
+# ------------
+#   PKI setup
+#####################################################
+
+project( pki )
+
+if(NOT "${DESTDIR}" STREQUAL "")
+    install(CODE "execute_process (COMMAND bash -c \"${INSTALL_DIR}/etc/init.d/setupPKI\")" COMPONENT Runtime)
+endif()
