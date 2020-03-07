@@ -22,3 +22,7 @@ RUN apt-get -y install  dbus dmsetup gir1.2-glib-2.0 libapparmor1 libargon2-0 li
   python3-pkg-resources python3-requests python3-six python3-urllib3 python3.6 python3.6-minimal shared-mime-info \
   ssh-import-id systemd systemd-sysv wget xauth xdg-user-dirs
 RUN apt-get clean
+COPY hpccsystems-platform-community_7.6.30-1bionic_amd64.deb .
+RUN dpkg -i hpccsystems-platform-community_7.6.30-1bionic_amd64.deb
+USER hpcc
+ENTRYPOINT ["/bin/sh", "-c", "/opt/HPCCSystems/etc/init.d/hpcc-init start && tail -f /var/log/HPCCSystems/myesp/esp.log"]
