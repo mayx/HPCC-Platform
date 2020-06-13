@@ -55,7 +55,7 @@
 
 #define PWD_NEVER_EXPIRES (__int64)0x8000000000000000
 
-#define UNK_PERM_VALUE (SecAccessFlags)-2	//used to initialize "default" permission, which we later try to deduce
+#define UNK_PERM_VALUE (SecAccessFlags)-2    //used to initialize "default" permission, which we later try to deduce
 
 const char* UserFieldNames[] = { "@id", "@name", "@fullname", "@passwordexpiration", "@employeeid", "@employeenumber" };
 
@@ -296,6 +296,11 @@ public:
         {
             if (0 == stricmp(m_cfgServerType, "ActiveDirectory"))
                 m_serverType = ACTIVE_DIRECTORY;
+            else if (strieq(m_cfgServerType, "AzureActiveDirectory"))
+            {
+                m_serverType = ACTIVE_DIRECTORY;
+                m_isAzureAD = true;
+            }
             else if (0 == stricmp(m_cfgServerType, "389DirectoryServer"))//uses iPlanet style ACI
                 m_serverType = OPEN_LDAP;
             else if (0 == stricmp(m_cfgServerType, "OpenLDAP"))
@@ -410,7 +415,7 @@ public:
             throw MakeStringException(-1, "users basedn not found in config");
         }
         LdapUtils::normalizeDn(user_basedn.str(), m_basedn.str(), m_user_basedn);
-        
+
         StringBuffer group_basedn;
         cfg->getProp(".//@groupsBasedn", group_basedn);
         if(group_basedn.length() == 0)
@@ -421,7 +426,11 @@ public:
 
         StringBuffer adminGrp;
         cfg->getProp(".//@adminGroupName", adminGrp);
-        if(adminGrp.isEmpty())
+        if (m_isAzureAD)
+        {
+            adminGrp.clear().appendf("cn=%s,ou=%s", AAD_ADMINISTRATORS_GROUP, AAD_USERS_GROUPS_OU);
+        }
+        else if(adminGrp.isEmpty())
         {
             adminGrp.set(m_serverType == ACTIVE_DIRECTORY ? "cn=Administrators,cn=Builtin" : "cn=Directory Administrators");
         }
@@ -520,7 +529,9 @@ public:
 
         if(sysuser_basedn.length() == 0)
         {
-            if(m_serverType == ACTIVE_DIRECTORY)
+            if (m_isAzureAD)
+                m_sysuser_basedn.set(m_user_basedn);
+            else if(m_serverType == ACTIVE_DIRECTORY)
                 LdapUtils::normalizeDn( "cn=Users", m_basedn.str(), m_sysuser_basedn);
             else if(m_serverType == IPLANET)
                 m_sysuser_basedn.append("ou=administrators,ou=topologymanagement,o=netscaperoot");
@@ -560,12 +571,6 @@ public:
             m_sdfieldname.append("aci");
         else if(m_serverType == OPEN_LDAP)
             m_sdfieldname.append("aci");
-
-        if (m_serverType == ACTIVE_DIRECTORY)
-        {
-            if (strstr(m_sysuser_basedn.str(), "aaddc users") != nullptr)
-                m_isAzureAD = true;
-        }
     }
 
     virtual const char * getAdminGroupDN()
@@ -753,7 +758,7 @@ public:
         return m_timeout;
     }
 
-    bool isAzureAD()
+    virtual bool isAzureAD()
     {
         return m_isAzureAD;
     }
@@ -1535,8 +1540,11 @@ public:
             createLdapBasedn(NULL, m_ldapconfig->getResourceBasedn(RT_WORKUNIT_SCOPE), PT_DEFAULT);
             createLdapBasedn(NULL, m_ldapconfig->getResourceBasedn(RT_SUDOERS), PT_DEFAULT);
 
-            createLdapBasedn(NULL, m_ldapconfig->getUserBasedn(), PT_DEFAULT);
-            createLdapBasedn(NULL, m_ldapconfig->getGroupBasedn(), PT_DEFAULT);
+            if (!m_ldapconfig->isAzureAD())
+            {
+                createLdapBasedn(NULL, m_ldapconfig->getUserBasedn(), PT_DEFAULT);
+                createLdapBasedn(NULL, m_ldapconfig->getGroupBasedn(), PT_DEFAULT);
+            }
             createdOU = true;
         }
     }
@@ -3826,9 +3834,12 @@ public:
             groups.append("Authenticated Users");
             managedBy.append("");
             descriptions.append("");
-            groups.append("Administrators");
-            managedBy.append("");
-            descriptions.append("");
+            if (!m_ldapconfig->isAzureAD())
+            {
+                groups.append("Administrators");
+                managedBy.append("");
+                descriptions.append("");
+            }
         }
         else
         {
