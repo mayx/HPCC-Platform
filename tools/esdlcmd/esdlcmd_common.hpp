@@ -106,6 +106,7 @@ typedef IEsdlCommand *(*EsdlCommandFactory)(const char *cmdname);
 #define ESDLOPT_NO_EXPORT               "--no-export"
 #define ESDLOPT_HIDE_GETDATAFROM        "--hide-get-data-from"
 #define ESDLOPT_WSDL_ADDRESS            "--wsdl-address"
+#define ESDLOPT_SWAGGER_LOCATION        "--swagger-location"
 
 #define DEFAULT_NAMESPACE_BASE          "urn:hpccsystems:ws"
 #define ESDLOPTLIST_DELIMITER           ";"
@@ -186,7 +187,7 @@ public:
             "                                            " ESDL_TRACE_CATEGORY_PROGRESS ": all progress output\n"
             "                                            " ESDL_TRACE_CATEGORY_INFO ": all info output\n"
             "                                        Errors and warnings are enabled by default if not verbose, and all are enabled when verbose."
-            "                                        Use an empty <flags> value to disable all."
+            "                                        Use an empty <flags> value to disable all.\n"
         );
     }
     virtual void outputWsStatus(int code, const char * message)

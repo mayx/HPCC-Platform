@@ -89,6 +89,7 @@ interface IEspHttpBinding
     virtual int onGetContent(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName)=0;
     virtual int onGetWsdl(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName)=0;
     virtual int onGetXsd(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName)=0;
+    virtual int onGetSwagger(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName)=0;
     virtual int onGetSoapBuilder(IEspContext &context, CHttpRequest* request, CHttpResponse* response,  const char *serv, const char *method)=0;
     virtual int onGetJsonBuilder(IEspContext &context, CHttpRequest* request, CHttpResponse* response,  const char *serv, const char *method)=0;
     virtual int onGetReqSampleXml(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serv, const char *method)=0;
@@ -266,6 +267,7 @@ public:
     virtual int onGet(CHttpRequest* request, CHttpResponse* response);
     virtual int onGetWsdl(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName);
     virtual int onGetXsd(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName);
+    virtual int onGetSwagger(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *serviceName, const char *methodName);
 
     virtual int onPost(CHttpRequest* request, CHttpResponse* response){return 0;};
 

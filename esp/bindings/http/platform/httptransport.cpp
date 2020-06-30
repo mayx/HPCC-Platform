@@ -1569,6 +1569,8 @@ void CHttpRequest::parseEspPathInfo()
                     m_sstype=sub_serv_wsdl;
                 else if (m_queryparams && (m_queryparams->hasProp("xsd")))
                     m_sstype=sub_serv_xsd;
+                else if (m_queryparams && (m_queryparams->hasProp("swagger")))
+                    m_sstype=sub_serv_swagger;
                 else if (m_queryparams && (m_queryparams->hasProp("reqxml_")))
                     m_sstype=sub_serv_reqsamplexml;
                 else if (m_queryparams && (m_queryparams->hasProp("respxml_")))

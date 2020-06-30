@@ -41,6 +41,7 @@
     <xsl:param name="includeRoxieTest" select="0"/>
     <xsl:param name="includeJsonTest" select="0"/>
     <xsl:param name="includeJsonReqSample" select="0"/>
+    <xsl:param name="includeSwagger" select="0"/>
     <xsl:param name="schemaRoot" select="xsd:schema"/>
     <xsl:param name="esdl_links" select="0"/>
     <xsl:param name="showLogout" select="showLogout"/>
@@ -184,6 +185,9 @@
                             </b>&nbsp;&nbsp;
                                 &nbsp;<a><xsl:attribute name="href"><xsl:call-template name="build_link"><xsl:with-param name="type" select="'wsdl'"/></xsl:call-template></xsl:attribute>WSDL</a>
                                 &nbsp;<a><xsl:attribute name="href"><xsl:call-template name="build_link"><xsl:with-param name="type" select="'xsd'"/></xsl:call-template></xsl:attribute>XSD</a>
+                                <xsl:if test="$includeSwagger">
+                                    &nbsp;<a><xsl:attribute name="href"><xsl:call-template name="build_link"><xsl:with-param name="type" select="'swagger'"/></xsl:call-template></xsl:attribute>Swagger</a>
+                                </xsl:if>
                                 &nbsp;<a><xsl:attribute name="href"><xsl:call-template name="build_link"><xsl:with-param name="type" select="'reqxml'"/></xsl:call-template></xsl:attribute>XMLRequest</a>
                                 &nbsp;<a><xsl:attribute name="href"><xsl:call-template name="build_link"><xsl:with-param name="type" select="'respxml'"/></xsl:call-template></xsl:attribute>XMLResponse</a>
                                 <xsl:if test="$includeJsonTest">
@@ -1457,6 +1461,7 @@
                         <xsl:when test="$type='respxml'"><xsl:call-template name="concat_link"><xsl:with-param name="begin" select="0"/><xsl:with-param name="base" select="'SampleMessage?Type=response'"/></xsl:call-template></xsl:when>
                         <xsl:when test="$type='xsd'"><xsl:call-template name="concat_link"><xsl:with-param name="begin" select="1"/><xsl:with-param name="base" select="'GetMethodSchema'"/></xsl:call-template></xsl:when>
                         <xsl:when test="$type='wsdl'"><xsl:call-template name="concat_link"><xsl:with-param name="begin" select="1"/><xsl:with-param name="base" select="'GetWsdl'"/></xsl:call-template></xsl:when>
+                        <xsl:when test="$type='swagger'"><xsl:call-template name="concat_link"><xsl:with-param name="begin" select="1"/><xsl:with-param name="base" select="'GetSwagger'"/></xsl:call-template></xsl:when>
                         <xsl:when test="$type='action'"><xsl:call-template name="concat_link"><xsl:with-param name="begin" select="1"/><xsl:with-param name="base" select="'Invoke'"/></xsl:call-template></xsl:when>
                     </xsl:choose>
             </xsl:when>
@@ -1473,6 +1478,7 @@
                         <xsl:when test="$type='respjson'"><xsl:value-of select="concat($methodName,'?respjson_','&amp;',$params)"/></xsl:when>
                         <xsl:when test="$type='xsd'"><xsl:value-of select="concat($methodName,'?xsd','&amp;',$params)"/></xsl:when>
                         <xsl:when test="$type='wsdl'"><xsl:value-of select="concat($methodName,'?wsdl','&amp;',$params)"/></xsl:when>
+                        <xsl:when test="$type='swagger'"><xsl:value-of select="concat($methodName,'?swagger','&amp;',$params)"/></xsl:when>
                         <xsl:when test="$type='action'"><xsl:value-of select="concat($methodName, $queryParams)"/></xsl:when>
                     </xsl:choose>
             </xsl:otherwise>

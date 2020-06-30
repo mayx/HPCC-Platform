@@ -43,6 +43,7 @@ FOREACH( iFILES
     ${CMAKE_CURRENT_SOURCE_DIR}/esdl2ecl.xslt
     ${CMAKE_CURRENT_SOURCE_DIR}/esdl2monitor.xslt
     ${CMAKE_CURRENT_SOURCE_DIR}/esxdl2xsd.xslt
+    ${CMAKE_CURRENT_SOURCE_DIR}/esxdl2swagger.xslt
     ${CMAKE_CURRENT_SOURCE_DIR}/esdl2java_srvbase.xslt
     ${CMAKE_CURRENT_SOURCE_DIR}/esdl2java_srvdummy.xslt
     ${CMAKE_CURRENT_SOURCE_DIR}/esdl2cpp_srvbasehpp.xslt

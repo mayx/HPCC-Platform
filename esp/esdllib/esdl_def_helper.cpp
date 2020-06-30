@@ -37,7 +37,8 @@ private:
     MapXslIdToProperties parameters;
 
     void insertAtRoot(StringBuffer& target, StringBuffer& value, bool insertWithinRootStartTag=false);
-
+    virtual void toFmt( IEsdlDefObjectIterator &objs, StringBuffer &result, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns=NULL, unsigned flags=0, bool addVersion = false);
+    StringBuffer& genCacheID(EsdlXslTypeId xslId, StringBuffer& cacheid);
 public:
     IMPLEMENT_IINTERFACE;
 
@@ -66,6 +67,7 @@ public:
 
     virtual void loadTransform( StringBuffer &path, IProperties *params, EsdlXslTypeId xslId );
     virtual void setTransformParams( EsdlXslTypeId xslId, IProperties *params );
+    virtual void setTransformParam( EsdlXslTypeId xslId, const char* name, const char* value );
 
     virtual void toXML( IEsdlDefObjectIterator &objs, StringBuffer &xml, double version, IProperties *opts, unsigned requestedFlags=0 );
 
@@ -73,6 +75,7 @@ public:
     virtual void toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xsd, StringBuffer &xslt, double version, IProperties *opts, const char *ns=NULL, unsigned flags=0 );
     virtual void toWSDL( IEsdlDefObjectIterator &objs, StringBuffer &xsd, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns=NULL, unsigned flags=0 );
     virtual void toMicroService( IEsdlDefObjectIterator& objs, StringBuffer &content, EsdlXslTypeId classType, IProperties *opts, unsigned flags);
+    virtual void toSwagger( IEsdlDefObjectIterator &objs, StringBuffer &result, double version, IProperties *opts, unsigned flags=0 );
 
     void loadTransformParams( EsdlXslTypeId xslId );
 
@@ -92,6 +95,50 @@ void EsdlDefinitionHelper::insertAtRoot(StringBuffer& target, StringBuffer& valu
     }
 }
 
+StringBuffer& EsdlDefinitionHelper::genCacheID(EsdlXslTypeId xslId, StringBuffer& cacheid)
+{
+    cacheid.append("esdldefhelper");
+    switch (xslId)
+    {
+    case EsdlXslToXsd:
+        cacheid.append(".xsd");
+        break;
+    EsdlXslToWsdl:
+        cacheid.append(".wsdl");
+        break;
+    EsdlXslToSwagger:
+        cacheid.append(".swagger");
+        break;
+    EsdlXslToJavaServiceBase:
+        cacheid.append(".javaservicebase");
+        break;
+    EsdlXslToJavaServiceDummy:
+        cacheid.append(".javaservicedummy");
+        break;
+    EsdlXslToCppServiceBaseHpp:
+        cacheid.append(".cppservicebasehpp");
+        break;
+    EsdlXslToCppServiceBaseCpp:
+        cacheid.append(".cppservicebasecpp");
+        break;
+    EsdlXslToCppServiceHpp:
+        cacheid.append(".cppservicehpp");
+        break;
+    EsdlXslToCppServiceCpp:
+        cacheid.append(".cppservicecpp");
+        break;
+    EsdlXslToCppCMake:
+        cacheid.append(".cppcmake");
+        break;
+    EsdlXslToCppTypes:
+        cacheid.append(".cpptypes");
+        break;
+    default:
+        break;
+    }
+    return cacheid;
+}
+
 void EsdlDefinitionHelper::loadTransform( StringBuffer &path, IProperties *params, EsdlXslTypeId xslId )
 {
     StringBuffer xsl;
@@ -100,7 +147,8 @@ void EsdlDefinitionHelper::loadTransform( StringBuffer &path, IProperties *param
     Owned<IXslProcessor> proc  = getXslProcessor();
     IXslTransform* trans = proc->createXslTransform();
 
-    trans->setXslSource(xsl, xsl.length(), "esdldefhelper", ".");
+    StringBuffer cacheid;
+    trans->setXslSource(xsl, xsl.length(), genCacheID(xslId, cacheid).str(), ".");
 
     transforms.setValue( xslId, trans );
     parameters.setValue( xslId, params );
@@ -111,6 +159,18 @@ void EsdlDefinitionHelper::loadTransform( StringBuffer &path, IProperties *param
 void EsdlDefinitionHelper::setTransformParams( EsdlXslTypeId xslId, IProperties *params )
 {
     parameters.setValue( xslId, params );
+}
+
+void EsdlDefinitionHelper::setTransformParam( EsdlXslTypeId xslId, const char* name, const char* value )
+{
+    IProperties** paramsptr = parameters.getValue(xslId);
+    if (!paramsptr || !*paramsptr)
+    {
+        IProperties* params = createProperties(false);
+        parameters.setValue(xslId, params);
+        paramsptr = &params;
+    }
+    (*paramsptr)->setProp(name, value);
 }
 
 void removeEclHiddenStructs(IPropertyTree &depTree)
@@ -238,7 +298,7 @@ void EsdlDefinitionHelper::toXML( IEsdlDefObjectIterator& objs, StringBuffer &xm
     return;
 }
 
-void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xsd, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns, unsigned flags)
+void EsdlDefinitionHelper::toFmt( IEsdlDefObjectIterator &objs, StringBuffer &result, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns, unsigned flags, bool addVersion)
 {
     StringBuffer xml;
     int xmlLen = 0;
@@ -251,7 +311,10 @@ void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xs
         IProperties* params = *( parameters.getValue(xslId) );
         const char *tns = (ns) ? ns :params->queryProp("tnsParam");
 
-        xml.appendf("<esxdl name=\"custom\" EsdlXslTypeId=\"%d\" xmlns:tns=\"%s\" ns_uri=\"%s\">", xslId, tns ? tns : "urn:unknown", tns ? tns : "urn:unknown");
+        xml.appendf("<esxdl name=\"custom\" EsdlXslTypeId=\"%d\" xmlns:tns=\"%s\" ns_uri=\"%s\"", xslId, tns ? tns : "urn:unknown", tns ? tns : "urn:unknown");
+        if (addVersion)
+            xml.appendf(" version=\"%f\"", version);
+        xml.append(">");
         this->toXML( objs, xml, version, opts, flags );
         xml.append("</esxdl>");
 
@@ -262,13 +325,18 @@ void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xs
 
         xmlLen = xml.length();
         trans->setXmlSource( xml.str(), xmlLen );
-        trans->transform(xsd);
+        trans->transform(result);
 
     } else {
         throw (MakeStringException( 0, "Unable to find transform for EsdlXslTypeId=%d", xslId ));
     }
 
     return;
+}
+
+void EsdlDefinitionHelper::toXSD( IEsdlDefObjectIterator &objs, StringBuffer &xsd, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns, unsigned flags)
+{
+    toFmt(objs, xsd, xslId, version, opts, ns, flags, false);
 }
 
 void EsdlDefinitionHelper::toWSDL( IEsdlDefObjectIterator &objs, StringBuffer &xsd, EsdlXslTypeId xslId, double version, IProperties *opts, const char *ns, unsigned flags)
@@ -354,6 +422,11 @@ void EsdlDefinitionHelper::toMicroService( IEsdlDefObjectIterator& objs, StringB
     }
 
     return;
+}
+
+void EsdlDefinitionHelper::toSwagger( IEsdlDefObjectIterator &objs, StringBuffer &result, double version, IProperties *opts, unsigned flags)
+{
+    toFmt(objs, result, EsdlXslToSwagger, version, opts, nullptr, flags, true);
 }
 
 esdl_decl IEsdlDefinitionHelper* createEsdlDefinitionHelper( )

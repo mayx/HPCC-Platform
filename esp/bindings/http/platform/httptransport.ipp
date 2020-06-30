@@ -298,6 +298,7 @@ typedef enum sub_service_
     sub_serv_json_builder,
     sub_serv_wsdl,
     sub_serv_xsd,
+    sub_serv_swagger,
     sub_serv_config,
     sub_serv_getversion,
     sub_serv_reqsamplexml,

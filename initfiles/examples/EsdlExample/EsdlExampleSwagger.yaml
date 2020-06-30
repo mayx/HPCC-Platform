@@ -1,0 +1,255 @@
+openapi: 3.0.1
+servers:
+- url: http://localhost:8088
+info:
+  title: EsdlExample
+  version: '0.010000'
+paths:
+  /EsdlExample/CppEchoPersonInfo:
+    post:
+      parameters:
+        - name: ver_
+          in: query
+          schema:
+            type: string
+            default: 0.010000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                CppEchoPersonInfoRequest:
+                  $ref: '#/components/schemas/CppEchoPersonInfoRequest'
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  CppEchoPersonInfoResponse:
+                    $ref: '#/components/schemas/CppEchoPersonInfoResponse'
+        400:
+          description: bad request
+          content: {}
+        401:
+          description: unauthorized
+          content: {}
+  /EsdlExample/JavaEchoPersonInfo:
+    post:
+      parameters:
+        - name: ver_
+          in: query
+          schema:
+            type: string
+            default: 0.010000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                JavaEchoPersonInfoRequest:
+                  $ref: '#/components/schemas/JavaEchoPersonInfoRequest'
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  JavaEchoPersonInfoResponse:
+                    $ref: '#/components/schemas/JavaEchoPersonInfoResponse'
+        400:
+          description: bad request
+          content: {}
+        401:
+          description: unauthorized
+          content: {}
+  /EsdlExample/Ping:
+    post:
+      parameters:
+        - name: ver_
+          in: query
+          schema:
+            type: string
+            default: 0.010000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                EsdlExamplePingRequest:
+                  $ref: '#/components/schemas/EsdlExamplePingRequest'
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  EsdlExamplePingResponse:
+                    $ref: '#/components/schemas/EsdlExamplePingResponse'
+        400:
+          description: bad request
+          content: {}
+        401:
+          description: unauthorized
+          content: {}
+  /EsdlExample/RoxieEchoPersonInfo:
+    post:
+      parameters:
+        - name: ver_
+          in: query
+          schema:
+            type: string
+            default: 0.010000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                RoxieEchoPersonInfoRequest:
+                  $ref: '#/components/schemas/RoxieEchoPersonInfoRequest'
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  RoxieEchoPersonInfoResponse:
+                    $ref: '#/components/schemas/RoxieEchoPersonInfoResponse'
+        400:
+          description: bad request
+          content: {}
+        401:
+          description: unauthorized
+          content: {}
+
+components:
+  schemas:
+    CppEchoPersonInfoRequest:
+      type: object
+      properties:
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    CppEchoPersonInfoResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    JavaEchoPersonInfoRequest:
+      type: object
+      properties:
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    JavaEchoPersonInfoResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    EsdlExamplePingRequest:
+      type: object
+    EsdlExamplePingResponse:
+      type: object
+    RoxieEchoPersonInfoRequest:
+      type: object
+      properties:
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    RoxieEchoPersonInfoResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        Name:
+          $ref: '#/components/schemas/NameInfo'
+        Addresses:
+          type: object
+          properties:
+            Address:
+              type: array
+              items:
+                $ref: '#/components/schemas/AddressInfo'
+    NameInfo:
+      type: object
+      properties:
+        First:
+          type: string
+        Last:
+          type: string
+        Aliases:
+          type: object
+          properties:
+            Alias:
+              type: array
+              items:
+                type: string
+    AddressInfo:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/AddressType'
+        Line1:
+          type: string
+        Line2:
+          type: string
+        City:
+          type: string
+        State:
+          type: string
+        Zip:
+          type: integer
+    AddressType:
+      type: string
+      enum:
+        - Home
+        - Work
+        - Hotel

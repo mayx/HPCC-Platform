@@ -995,6 +995,8 @@ int EspHttpBinding::onGet(CHttpRequest* request, CHttpResponse* response)
             return onGetWsdl(context, request, response, serviceName.str(), methodName.str());
         case sub_serv_xsd:
             return onGetXsd(context, request, response, serviceName.str(), methodName.str());
+        case sub_serv_swagger:
+            return onGetSwagger(context, request, response, serviceName.str(), methodName.str());
         case sub_serv_instant_query:
             return onGetInstantQuery(context, request, response, serviceName.str(), methodName.str());
         case sub_serv_soap_builder:
@@ -1590,6 +1592,11 @@ int EspHttpBinding::onGetXsd(IEspContext &context, CHttpRequest* request, CHttpR
 int EspHttpBinding::onGetWsdl(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *service, const char *method)
 {
     return getWsdlOrXsd(context,request,response,service,method,true);
+}
+
+int EspHttpBinding::onGetSwagger(IEspContext &context, CHttpRequest* request, CHttpResponse* response, const char *service, const char *method)
+{
+    UNIMPLEMENTED;
 }
 
 bool EspHttpBinding::getSchema(StringBuffer& schema, IEspContext &ctx, CHttpRequest* req, const char *service, const char *method, bool standalone) 

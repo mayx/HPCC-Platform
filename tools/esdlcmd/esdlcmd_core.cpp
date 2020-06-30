@@ -32,7 +32,7 @@ class Esdl2XSDCmd : public EsdlHelperConvertCmd
 public:
     Esdl2XSDCmd() : optInterfaceVersion(0), optAllAnnot(false), optNoAnnot(false),
                     optEnforceOptional(true), optRawOutput(false), optXformTimes(1), optFlags(DEPFLAG_COLLAPSE|DEPFLAG_ARRAYOF),
-                    outfileext(".xsd")
+                    outfileext(".xsd"), xsltfile("esxdl2xsd.xslt")
     {}
 
     virtual bool parseCommandLineOptions(ArgvIterator &iter)
@@ -99,10 +99,18 @@ public:
             return true;
         if (iter.matchOption(optTargetNamespace, ESDLOPT_TARGET_NAMESPACE) || iter.matchOption(optTargetNamespace, ESDLOPT_TARGET_NS))
             return true;
-        if (iter.matchOption(optOptional, ESDLOPT_OPT_PARAM_VAL) || iter.matchOption(optOptional, ESDLOPT_OPTIONAL_PARAM_VAL))
+        StringAttr optional;
+        if (iter.matchOption(optional, ESDLOPT_OPT_PARAM_VAL) || iter.matchOption(optional, ESDLOPT_OPTIONAL_PARAM_VAL))
+        {
+            optOptionals.append(optional.get());
             return true;
-        if (iter.matchFlag(optEnforceOptional, ESDLOPT_NO_OPTIONAL_ATTRIBUTES))
+        }
+        bool noOpt = false;
+        if (iter.matchFlag(noOpt, ESDLOPT_NO_OPTIONAL_ATTRIBUTES))
+        {
+            optEnforceOptional = !noOpt;
             return true;
+        }
         if (iter.matchOption(optXformTimes, ESDLOPT_NUMBER))
             return true;
         if (iter.matchFlag(optNoCollapse, ESDLOPT_NO_COLLAPSE))
@@ -157,7 +165,7 @@ public:
         }
 
         fullxsltpath.set(optXsltPath);
-        fullxsltpath.append("/xslt/esxdl2xsd.xslt");
+        fullxsltpath.append("/xslt/").append(xsltfile);
 
         if (!optPreprocessOutputDir.isEmpty())
             optRawOutput = true;
@@ -259,7 +267,7 @@ public:
         puts("   --annotate <all | none>              Flag turning on either all annotations or none. By default annotations are generated " );
         puts("                                        for Enumerations. Setting the flag to 'none' will disable even those. Setting it" );
         puts("                                        to 'all' will enable additional annotations such as collapsed, cols, form_ui, html_head and rows.");
-        puts("   --noopt                              Turns off the enforcement of 'optional' attributes on elements. If no -noopt is specified then all elements with an 'optional'" );
+        puts("   --noopt                              Turns off the enforcement of 'optional' attributes on elements. If no --noopt is specified then no elements with an 'optional'" );
         puts("                                        will be included in the output. By default 'optional' filtering is enforced.");
         puts("   -opt,--optional <param value>        Value to use for optional tag filter when gathering dependencies" );
         puts("                                        An example: passing 'internal' when some Esdl definition objects have the attribute");
@@ -312,9 +320,9 @@ public:
         if( optEnforceOptional )
         {
             opts.setown(createProperties(false));
-            if( optOptional.length() )
+            ForEachItemIn(x, optOptionals)
             {
-                opts->setProp(optOptional.get(), 1);
+                opts->setProp(optOptionals.item(x), 1);
             }
         }
     }
@@ -326,7 +334,8 @@ public:
         generateNamespace(tns);
 
         params->setProp( "tnsParam", tns );
-        params->setProp( "optional", optOptional );
+        StringBuffer optionals;
+        params->setProp( "optionals", optionals2str(optionals).str());
 
         if( optAllAnnot )
         {
@@ -430,7 +439,7 @@ public:
     StringAttr optService;
     StringAttr optXsltPath;
     StringAttr optMethod;
-    StringAttr optOptional;
+    StringArray optOptionals;
     bool optEnforceOptional;
     StringAttr optAnnotate;
     bool optAllAnnot, optNoAnnot;
@@ -441,8 +450,8 @@ public:
     double optInterfaceVersion;
     unsigned int optXformTimes;
     unsigned optFlags;
-    bool optNoCollapse;
-    bool optNoArrayOf;
+    bool optNoCollapse = false;
+    bool optNoArrayOf = false;
 
 protected:
     StringBuffer outputBuffer;
@@ -451,6 +460,18 @@ protected:
     Owned<IProperties> params;
     StringBuffer tns;
     StringBuffer outfileext;
+    StringBuffer xsltfile;
+
+    StringBuffer& optionals2str(StringBuffer& strbuf)
+    {
+        ForEachItemIn(x, optOptionals)
+        {
+            if (x > 0)
+                strbuf.append(",");
+            strbuf.append(optOptionals.item(x));
+        }
+        return strbuf;
+    }
 };
 
 class Esdl2WSDLCmd : public Esdl2XSDCmd
@@ -544,7 +565,7 @@ public:
         puts("serviceName  - Name of ESDL Service defined in the given definition file.\n" );
 
         printOptions();
-        puts("   --wsdladdress                        Defines the output WSDL's location address\n");
+        puts("   --wsdl-address                        Defines the output WSDL's location address\n");
         EsdlConvertCmd::usage();
 
     }
@@ -555,7 +576,8 @@ public:
         generateNamespace(tns);
 
         params->setProp( "tnsParam", tns );
-        params->setProp( "optional", optOptional );
+        StringBuffer optionals;
+        params->setProp( "optionals", optionals2str(optionals).str());
 
         if( optAllAnnot )
         {
@@ -573,6 +595,163 @@ public:
 
 public:
     StringAttr optWsdlAddress;
+};
+
+class Esdl2SwaggerCmd : public Esdl2XSDCmd
+{
+public:
+    Esdl2SwaggerCmd()
+    {
+        outfileext.set(".yaml");
+        xsltfile.set("esxdl2swagger.xslt");
+    }
+
+    virtual bool parseCommandLineOption(ArgvIterator &iter)
+    {
+        if (iter.matchOption(optSwaggerLocation, ESDLOPT_SWAGGER_LOCATION))
+            return true;
+
+        if (iter.matchOption(optTargetNamespace, ESDLOPT_TARGET_NAMESPACE) || iter.matchOption(optTargetNamespace, ESDLOPT_TARGET_NS))
+            return false;
+        if (iter.matchOption(optAnnotate, ESDLOPT_ANNOTATE))
+            return false;
+        if (iter.matchOption(optXformTimes, ESDLOPT_NUMBER))
+            return false;
+        if (iter.matchFlag(optNoArrayOf, ESDLOPT_NO_ARRAYOF))
+            return false;
+
+        if (Esdl2XSDCmd::parseCommandLineOption(iter))
+            return true;
+
+        return false;
+    }
+
+    esdlCmdOptionMatchIndicator matchCommandLineOption(ArgvIterator &iter, bool finalAttempt)
+    {
+        return Esdl2XSDCmd::matchCommandLineOption(iter, true);
+    }
+
+    virtual bool finalizeOptions(IProperties *globals)
+    {
+        if (optSwaggerLocation.isEmpty())
+            optSwaggerLocation.set("http://localhost");
+
+        return Esdl2XSDCmd::finalizeOptions(globals);
+    }
+
+    virtual void doTransform(IEsdlDefObjectIterator& objs, StringBuffer &target, double version=0, IProperties *opts=NULL, const char *ns=NULL, unsigned flags=0 )
+    {
+        cmdHelper.defHelper->toSwagger( objs, target, optInterfaceVersion, opts, optFlags );
+    }
+
+    virtual void loadTransform( StringBuffer &xsltpath, IProperties *params)
+    {
+        cmdHelper.defHelper->loadTransform( xsltpath, params, EsdlXslToSwagger );
+    }
+
+    virtual void setTransformParams(IProperties *params )
+    {
+        cmdHelper.defHelper->setTransformParams(EsdlXslToSwagger, params);
+    }
+
+    virtual int processCMD()
+    {
+        cmdHelper.loadDefinition(optSource, optService.get(), optInterfaceVersion,"", optTraceFlags());
+        createOptionals();
+
+        Owned<IEsdlDefObjectIterator> structs = cmdHelper.esdlDef->getDependencies( optService.get(), optMethod.get(), ESDLOPTLIST_DELIMITER, optInterfaceVersion, opts.get(), optFlags );
+
+        if( optRawOutput )
+        {
+            outputRaw(*structs);
+        }
+
+        if( !optXsltPath.isEmpty() )
+        {
+            createParams();
+
+            loadTransform( fullxsltpath, params);
+
+            if (optInterfaceVersion < 1.0e-100) //version is 0, meaning not provided on command line
+            {
+                Owned<IEsdlDefObjectIterator> defs = cmdHelper.esdlDef->getDependencies( optService.get(), optMethod.get(), ESDLOPTLIST_DELIMITER, 0.0, opts.get(), optFlags );
+                ForEach(*defs)
+                {
+                    IEsdlDefObject &esdlObj = (*defs).query();
+                    IEsdlDefService* srvdef = dynamic_cast<IEsdlDefService*>(&esdlObj);
+                    if (srvdef)
+                    {
+                        const char *verstr = srvdef->queryProp("version");
+                        if(verstr && *verstr)
+                            optInterfaceVersion = atof(verstr);
+
+                        verstr = srvdef->queryProp("default_client_version");
+                        if (verstr && *verstr)
+                        {
+                            if (atof(verstr) > optInterfaceVersion)
+                                optInterfaceVersion = atof(verstr);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            doTransform( *structs, outputBuffer, optInterfaceVersion, opts.get(), NULL, optFlags );
+
+            outputToFile();
+
+            printf( "%s\n", outputBuffer.str() );
+        }
+        else
+        {
+            throw( MakeStringException(0, "Path to /xslt/esxdl2swagger.xslt is empty, cannot perform transform.") );
+        }
+
+        return 0;
+    }
+
+    void printOptions()
+    {
+        puts("Options:");
+        puts("   --swagger-location <location>        Service location url to be used as server url in swagger definition");
+        puts("   -iv,--interface-version <version>    Constrain to interface version");
+        puts("   --method <meth name>[;<meth name>]*  Constrain to list of specific method(s)" );
+        puts("   --xslt <xslt file path>              Path to '/xslt/esxdl2swagger.xslt' file to transform EsdlDef to Swagger/OpenAPI" );
+        puts("   --preprocess-output <rawoutput dir>  Output pre-processed xml file to specified directory before applying XSLT transform" );
+        puts("   --noopt                              Turns off the enforcement of 'optional' attributes on elements. If no -noopt is specified then no elements with an 'optional'" );
+        puts("                                        will be included in the output. By default 'optional' filtering is enforced.");
+        puts("   -opt,--optional <param value>        Value to use for optional tag filter when gathering dependencies" );
+        puts("                                        An example: passing 'internal' when some Esdl definition objects have the attribute");
+        puts("                                        optional(\"internal\") will ensure they appear in the defintion, otherwise they'd be filtered out");
+        puts("   --show-inheritance                   Turns off the collapse feature. Collapsing optimizes the XML output to strip out structures" );
+        puts("                                        only used for inheritance, and collapses their elements into their child. That simplifies the" );
+        puts("                                        stylesheet. By default collapsing is on.");
+    }
+
+    virtual void usage()
+    {
+        puts("Usage:");
+        puts("esdl swagger sourcePath serviceName [options]\n\n" );
+        puts("sourcePath   - Absolute path to ESDL definition file" );
+        puts("               which contains ESDL Service definition." );
+        puts("serviceName  - Name of ESDL Service defined in the given definition file.\n" );
+
+        printOptions();
+        EsdlConvertCmd::usage();
+    }
+
+    void createParams()
+    {
+        params.set(createProperties());
+        params->setProp( "location", optSwaggerLocation );
+        StringBuffer optionals;
+        params->setProp( "optionals", optionals2str(optionals).str());
+        if (optNoCollapse)
+            params->setProp("nocollapse", "1");
+    }
+
+public:
+    StringAttr optSwaggerLocation;
 };
 
 #define XSLT_ESDL2JAVABASE "esdl2java_srvbase.xslt"
@@ -1131,6 +1310,8 @@ IEsdlCommand *createCoreEsdlCommand(const char *cmdname)
        return new Esdl2CppCmd();
     if (strieq(cmdname, "WSDL"))
         return new Esdl2WSDLCmd();
+    if (strieq(cmdname, "SWAGGER"))
+        return new Esdl2SwaggerCmd();
     if (strieq(cmdname, "PUBLISH"))
         return new EsdlPublishCmd();
     if (strieq(cmdname, "DELETE"))

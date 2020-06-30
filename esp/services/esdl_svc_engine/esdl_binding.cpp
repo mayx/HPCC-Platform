@@ -1897,6 +1897,10 @@ void EsdlBindingImpl::initEsdlServiceInfo(IEsdlDefService &srvdef)
     m_xsdgen->loadTransform(xsltpath, xsdparams, EsdlXslToXsd );
     m_xsdgen->loadTransform(xsltpath, wsdlparams, EsdlXslToWsdl );
 
+    xsltpath.replaceString("2xsd.", "2swagger.");
+    IProperties *swaggerparams = createProperties(false);
+    swaggerparams->setProp("location", getWsdlAddress()); //Swagger location and wsdl address are the same for the case here
+    m_xsdgen->loadTransform(xsltpath, swaggerparams, EsdlXslToSwagger);
 }
 
 void EsdlBindingImpl::getSoapMessage(StringBuffer& soapmsg,
@@ -2626,6 +2630,75 @@ int EsdlBindingImpl::onGetWsdl(IEspContext &context,
     return 0;
 }
 
+static StringBuffer& optionals2str(IProperties* opts, StringBuffer& strbuf)
+{
+    if (!opts)
+        return strbuf;
+    Owned<IPropertyIterator> iter = opts->getIterator();
+    ForEach(*iter)
+    {
+        const char *key = iter->getPropKey();
+        if (key && *key)
+        {
+            const char* val = opts->queryProp(key);
+            // Only include parameters that don't have a value and are not equal to swagger or __querystring
+            if ((!val || !*val) && !strieq(key, "swagger") && !strieq(key, "__querystring"))
+            {
+                if (strbuf.length() > 0)
+                    strbuf.append(",");
+                strbuf.append(key);
+            }
+        }
+    }
+    return strbuf;
+}
+
+int EsdlBindingImpl::onGetSwagger(IEspContext &context,
+                               CHttpRequest* request,
+                               CHttpResponse* response,
+                               const char *serviceName,
+                               const char *methodName)
+{
+    StringBuffer serviceQName;
+    StringBuffer methodQName;
+    StringBuffer out;
+
+    Owned<CSoapFault> soapFault;
+
+    if (!serviceName || !*serviceName)
+        serviceName = m_espServiceName.get();
+
+    if (!m_esdl || !qualifyServiceName(context, serviceName, methodName, serviceQName, &methodQName))
+    {
+        response->setStatus(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        out.set("The service has not been properly loaded.");
+    }
+    else
+    {
+        IProperties* reqparams = context.queryRequestParameters();
+        StringBuffer optsbuf;
+        optionals2str(reqparams, optsbuf);
+        if (optsbuf.length() > 0)
+            m_xsdgen->setTransformParam(EsdlXslToSwagger, "optionals", optsbuf.str());
+        try
+        {
+            Owned<IEsdlDefObjectIterator> it = m_esdl->getDependencies(serviceName, methodName, context.getClientVersion(), reqparams, ESDLDEP_FLAGS);
+            m_xsdgen->toSwagger(*it, out, context.getClientVersion(), reqparams, ESDLDEP_FLAGS);
+        }
+        catch (...)
+        {
+            throw makeWsException(ERR_ESDL_BINDING_INTERNERR, WSERR_CLIENT , "ESP", "Could not generate Swagger definition for this service." );
+        }
+        response->setStatus(HTTP_STATUS_OK);
+    }
+
+    response->setContent(out.str());
+    response->setContentType(HTTP_TYPE_TEXT_PLAIN);
+    response->send();
+
+    return 0;
+}
+
 bool EsdlBindingImpl::getSchema(StringBuffer& schema,
                                 IEspContext &ctx,
                                 CHttpRequest* req,
@@ -2846,6 +2919,7 @@ int EsdlBindingImpl::onGetXForm(IEspContext &context,
             xform->setParameter("includeRoxieTest", "1");
         xform->setParameter("includeJsonTest", "1");
         xform->setParameter("includeJsonReqSample", "1");
+        xform->setParameter("includeSwagger", "1");
 
         // set the prop noDefaultValue param
         IProperties* props = context.queryRequestParameters();
