@@ -24,14 +24,18 @@
 #define DEFAULT_MAX_PERSISTENT_IDLE_TIME 60
 #define DEFAULT_MAX_PERSISTENT_REQUESTS  100
 
-enum class PersistentLogLevel { PLogNone=0, PLogMin=1, PLogNormal=5, PLogMax=10};
-
+enum class PersistentLogLevel { PLogNone=0, PLogMin=1, PLogNormal=5, PLogMax=10 };
+enum class PersistentProtocol { ProtoTCP=0, ProtoTLS=1 };
 interface IPersistentHandler : implements IInterface
 {
-    virtual void add(ISocket* sock, SocketEndpoint* ep = nullptr) = 0;
+    // add - add a new socket to the pool for reuse
+    virtual void add(ISocket* sock, SocketEndpoint* ep = nullptr, PersistentProtocol proto = PersistentProtocol::ProtoTCP) = 0;
+    // remove - remove a socket from the handler to stop it from being re-used
     virtual void remove(ISocket* sock) = 0;
+    // doneUsing - put a socket back to the pool for further reuse, or remove from the pool when keep is false
     virtual void doneUsing(ISocket* sock, bool keep, unsigned usesOverOne = 0) = 0;
-    virtual Linked<ISocket> getAvailable(SocketEndpoint* ep = nullptr, bool* pShouldClose = nullptr) = 0;
+    // getAvailable - get one available socket from the pool
+    virtual ISocket* getAvailable(SocketEndpoint* ep = nullptr, bool* pShouldClose = nullptr, PersistentProtocol proto = PersistentProtocol::ProtoTCP) = 0;
     virtual void stop(bool wait) = 0;
     virtual bool inDoNotReuseList(SocketEndpoint* ep) = 0;
 };
@@ -40,6 +44,9 @@ interface IPersistentSelectNotify
 {
     virtual bool notifySelected(ISocket *sock,unsigned selected, IPersistentHandler* handler, bool shouldClose) = 0;
 };
+
+#define HTTP_VER_OFFSET 5
+bool isHttpPersistable(const char* httpVer, const char* conHeader);
 
 IPersistentHandler* createPersistentHandler(IPersistentSelectNotify* notify, int maxIdleTime = DEFAULT_MAX_PERSISTENT_IDLE_TIME, int maxReqs = DEFAULT_MAX_PERSISTENT_REQUESTS, PersistentLogLevel loglevel=PersistentLogLevel::PLogMin, bool enableDoNotReuseList=false);
 
