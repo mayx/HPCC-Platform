@@ -109,6 +109,7 @@ target_link_libraries ( ws_dfu
          dfuwu 
          roxiecommlib 
          wsdfuaccess
+         thorhelper
     )
 
 IF (USE_OPENSSL)

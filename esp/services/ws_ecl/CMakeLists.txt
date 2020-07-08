@@ -51,6 +51,7 @@ include_directories (
          ./../../../common/wuwebview
          ./../../../common/fileview2 
          ./../../../dali/base 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -77,6 +78,7 @@ target_link_libraries ( ws_ecl
          hql 
          fileview2 
          xmllib 
+         thorhelper
     )
 
 IF (USE_OPENSSL)

@@ -59,6 +59,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/deployment/configutils
          ${CMAKE_BINARY_DIR}
          ${CMAKE_BINARY_DIR}/oss
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -78,6 +79,7 @@ target_link_libraries ( WsDeploy
          deploy
          deployutils
          configutils
+         thorhelper
     )
 
 IF (USE_OPENSSL)

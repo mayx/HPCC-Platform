@@ -44,6 +44,7 @@ include_directories (
          ./../../platform 
          ./../../bindings/SOAP/Platform 
          ./../../bindings/SOAP/ws_ecl_client 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL -DWS_ECL_CLIENT_EXPORTS )
@@ -55,6 +56,7 @@ target_link_libraries (  ws_ecl_client
          jlib
          xmllib 
          esphttp 
+         thorhelper
     )
 
 

@@ -46,6 +46,7 @@ include_directories (
          ./../../bindings 
          ./../../bindings/SOAP/xpp
          ./../../smc/SMCLib  
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 if (USE_OPENLDAP)
@@ -62,6 +63,7 @@ target_link_libraries ( ws_account
          jlib
          xmllib 
          esphttp 
+         thorhelper
     )
 IF (USE_OPENSSL)
     target_link_libraries ( ws_account

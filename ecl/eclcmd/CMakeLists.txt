@@ -69,6 +69,7 @@ include_directories (
          ./../../esp/smc/SMCLib
          ./../../system/jlib
          ./../../system/xmllib
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_CONSOLE )
@@ -81,4 +82,5 @@ target_link_libraries ( ecl
         jlib
         esphttp
         workunit
+        thorhelper
     )

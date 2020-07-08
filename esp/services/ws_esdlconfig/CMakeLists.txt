@@ -56,6 +56,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/esp/esdllib
          ${HPCC_SOURCE_DIR}/esp/logging/logginglib
          ${HPCC_SOURCE_DIR}/esp/logging/loggingmanager
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -70,4 +71,5 @@ target_link_libraries ( ws_esdlconfig
          SMCLib
          esdl_svc_engine
          dalibase
+         thorhelper
     )

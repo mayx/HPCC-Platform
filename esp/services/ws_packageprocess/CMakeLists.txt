@@ -59,6 +59,7 @@ target_link_libraries ( ws_packageprocess
          esphttp
          dalibase
          ws_fs
+         thorhelper
     )
 
 IF (USE_OPENSSL)

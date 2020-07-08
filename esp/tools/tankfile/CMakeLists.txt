@@ -46,6 +46,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/esp/bindings
          ${HPCC_SOURCE_DIR}/esp/bindings/SOAP/xpp
          ${HPCC_SOURCE_DIR}/esp/clients
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_CONSOLE )
@@ -57,6 +58,7 @@ install ( TARGETS tankfile RUNTIME DESTINATION ${EXEC_DIR} COMPONENT Runtime)
 target_link_libraries ( tankfile
          jlib
          esphttp
+         thorhelper
     )
 IF (USE_OPENSSL)
     target_link_libraries ( tankfile

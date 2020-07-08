@@ -44,6 +44,7 @@ include_directories (
          ./../../../system/jlib 
          ./../../platform 
          ./../../clients 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_CONSOLE )
@@ -57,6 +58,7 @@ target_link_libraries ( wumanager
          jlib
          xmllib 
          esphttp
+         thorhelper
     )
 
 IF (USE_OPENSSL)

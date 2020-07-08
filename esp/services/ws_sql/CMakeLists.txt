@@ -94,6 +94,7 @@ if(WSSQL_SERVICE)
         ${libantlr3c_includes}
         ${ESPSCM_GENERATED_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/SQL2ECL
+        ${HPCC_SOURCE_DIR}/common/thorhelper
         )
 
     if (CMAKE_COMPILER_IS_CLANG)
@@ -113,6 +114,7 @@ if(WSSQL_SERVICE)
         dalibase
         libantlr3c
         wuwebview
+        thorhelper
         )
 
     SET_DIRECTORY_PROPERTIES(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "antlr3c")

@@ -57,6 +57,7 @@ include_directories (
          ./../../bindings 
          ./../../smc/SMCLib 
          ./../../bindings/SOAP/xpp 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -74,4 +75,5 @@ target_link_libraries ( ws_fileio
          ${XALAN_LIBRARIES} ${XERCES_LIBRARIES}
          xmllib 
          esphttp 
+         thorhelper
     )

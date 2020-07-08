@@ -59,6 +59,7 @@ include_directories (
          ./../../esp/platform 
          ./../../system/jlib 
          ./../../system/xmllib 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -DECLPLUS_EXPORTS -D_CONSOLE )
@@ -69,5 +70,6 @@ install ( TARGETS eclplus RUNTIME DESTINATION ${EXEC_DIR} )
 target_link_libraries (  eclplus 
          jlib
          esphttp 
+         thorhelper
     )
 

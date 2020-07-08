@@ -60,6 +60,7 @@ HPCC_ADD_SUBDIRECTORY (espstorelib)
         ${HPCC_SOURCE_DIR}/common/environment
         ${HPCC_SOURCE_DIR}/common/deftype
         ${ESPSCM_GENERATED_DIR}
+        ${HPCC_SOURCE_DIR}/common/thorhelper
         )
 
     add_definitions(-D_USRDLL)
@@ -72,6 +73,7 @@ HPCC_ADD_SUBDIRECTORY (espstorelib)
         esphttp
         dalibase
         wuwebview
+        thorhelper
         )
 
 IF (USE_OPENSSL)

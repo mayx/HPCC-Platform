@@ -77,6 +77,7 @@ target_link_libraries ( fileservices
          eclrtl  
          deftype 
          workunit 
+         thorhelper
     )
 
 

@@ -61,6 +61,7 @@ include_directories (
          ./../../../system/security/LdapSecurity
          ${CMAKE_BINARY_DIR}
          ${CMAKE_BINARY_DIR}/oss
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 if (USE_OPENLDAP)
@@ -101,6 +102,7 @@ target_link_libraries ( ws_smc
          ws_topology 
          schedulectrl 
          ws_workunits 
+         thorhelper
     )
 IF (USE_OPENSSL)
     target_link_libraries ( ws_smc

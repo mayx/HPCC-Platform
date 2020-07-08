@@ -48,6 +48,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/esp/bindings/SOAP/xpp
          ${HPCC_SOURCE_DIR}/esp/logging/logginglib
          ${HPCC_SOURCE_DIR}/esp/smc/SMCLib
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL -DLOGGINGCOMMON_EXPORTS)
@@ -61,6 +62,7 @@ target_link_libraries ( ws_decoupledlogging
          xmllib
          logginglib
          esphttp
+         thorhelper
     )
     
 IF (USE_OPENSSL)

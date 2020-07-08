@@ -38,6 +38,7 @@ if(USE_CASSANDRA)
      ${HPCC_SOURCE_DIR}/esp/bindings
      ${HPCC_SOURCE_DIR}/esp/bindings/SOAP/xpp
      ${HPCC_SOURCE_DIR}/esp/logging/logginglib
+     ${HPCC_SOURCE_DIR}/common/thorhelper
   )
 
   ADD_DEFINITIONS( -D_USRDLL -DCASSANDRALOGAGENT_EXPORTS )
@@ -56,5 +57,6 @@ if(USE_CASSANDRA)
     esphttp
     jlib
     logginglib
+    thorhelper
   )
 endif(USE_CASSANDRA)

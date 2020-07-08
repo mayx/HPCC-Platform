@@ -52,6 +52,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/system/xmllib
          ${HPCC_SOURCE_DIR}/ecl/eclcmd
          ${HPCC_SOURCE_DIR}/ecl/eclcc
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_CONSOLE )
@@ -64,6 +65,7 @@ target_link_libraries ( ecl-packagemap
         jlib
         esphttp
         workunit
+        thorhelper
     )
 
 if ( UNIX )

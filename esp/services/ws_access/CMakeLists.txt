@@ -48,6 +48,7 @@ include_directories (
          ${HPCC_SOURCE_DIR}/esp/smc/SMCLib
          ${HPCC_SOURCE_DIR}/dali/base
          ${HPCC_SOURCE_DIR}/system/mp
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 # NOTE - this should not be needed, it's the result of poor encapsulation and using CLdapSecManager directly 
@@ -63,6 +64,7 @@ target_link_libraries ( ws_access
          xmllib 
          esphttp 
          LdapSecurity 
+         thorhelper
     )
 
 IF (USE_OPENSSL)

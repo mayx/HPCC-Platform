@@ -85,6 +85,7 @@ target_link_libraries ( esdl_svc_engine
          esdllib
          dllserver
          dalibase
+         thorhelper
     )
 
 IF (USE_OPENSSL)

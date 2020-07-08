@@ -48,6 +48,7 @@ include_directories (
          ./../../../dali/base 
          ./../../bindings 
          ./../../bindings/SOAP/xpp 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -65,6 +66,7 @@ target_link_libraries ( ws_config
          ${XALAN_LIBRARIES} ${XERCES_LIBRARIES}
          xmllib 
          esphttp 
+         thorhelper
     )
 
 

@@ -45,6 +45,7 @@ include_directories (
     ${HPCC_SOURCE_DIR}/esp/esdl
     ${HPCC_SOURCE_DIR}/esp/esplib
     ${HPCC_SOURCE_DIR}/esp/logging/logginglib
+    ${HPCC_SOURCE_DIR}/common/thorhelper
     ./../..
     ./..
 )
@@ -67,4 +68,5 @@ target_link_libraries ( espserverloggingagent
     xmllib
     logginglib
     esphttp
+    thorhelper
 )

@@ -62,4 +62,5 @@ target_link_libraries ( esp
          remote 
          dalibase 
          environment 
+         thorhelper
     ) 

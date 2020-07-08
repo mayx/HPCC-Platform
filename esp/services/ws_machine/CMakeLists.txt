@@ -56,6 +56,7 @@ include_directories (
          ./../../bindings/SOAP/xpp 
          ./../../../esp/platform 
          ./../../smc/SMCLib 
+         ${HPCC_SOURCE_DIR}/common/thorhelper
     )
 
 ADD_DEFINITIONS( -D_USRDLL )
@@ -75,6 +76,7 @@ target_link_libraries ( ws_machine
          environment 
          workunit
          SMCLib
+         thorhelper
     )
 
 IF (USE_OPENSSL)
