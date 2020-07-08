@@ -68,6 +68,8 @@ set (    SRCS
          thorrparse.ipp
          thorsort.cpp
          thorsort.hpp
+         ../../esp/platform/persistent.cpp
+         ../../esp/platform/persistent.hpp
          
          roxiedebug.hpp
          roxiedebug.ipp
@@ -98,6 +100,7 @@ include_directories (
          ./../../testing/unittests
          ./../../system/tbb_sm/tbb/include
          ./../../system/security/shared
+         ../../esp/platform
          ${HPCC_SOURCE_DIR}/fs/dafsclient
     )
 
