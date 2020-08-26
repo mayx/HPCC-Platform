@@ -531,7 +531,7 @@ PersistentHandlerWrapper & queryPersistentHandler()
             if (maxPersistentRequests == 0)
                 return new PersistentHandlerWrapper(nullptr);
             else
-                return new PersistentHandlerWrapper(createPersistentHandler(nullptr, DEFAULT_MAX_PERSISTENT_IDLE_TIME, maxPersistentRequests, PersistentLogLevel::PLogMin, true));
+                return new PersistentHandlerWrapper(createPersistentHandler(nullptr, DEFAULT_MAX_PERSISTENT_IDLE_TIME, maxPersistentRequests, PersistentLogLevel::PLogMax, true));
         });
 }
 
