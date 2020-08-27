@@ -177,7 +177,6 @@ public:
         if (!sock || sock->OShandle() == INVALID_SOCKET)
             return;
         PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding socket %d to handler %d", sock->OShandle(), m_id);
-        PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding socket %p to handler", sock);
         CriticalBlock block(m_critsect);
         if (m_enableDoNotReuseList && ep != nullptr)
         {
@@ -194,7 +193,6 @@ public:
         m_selectHandler->add(sock, SELECTMODE_READ, this);
         Owned<CPersistentInfo> info = new CPersistentInfo(false, usTick()/1000, 0, ep, proto, sock);
         m_infomap.setValue(sock, info.getLink());
-        PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding info %p to availKeeper", info.get());
         m_availkeeper->add(info.get());
     }
 
