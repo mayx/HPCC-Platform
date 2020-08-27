@@ -175,6 +175,7 @@ public:
         if (!sock || sock->OShandle() == INVALID_SOCKET)
             return;
         PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding socket %d to handler %d", sock->OShandle(), m_id);
+        PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding socket %p to handler", sock);
         CriticalBlock block(m_critsect);
         if (m_enableDoNotReuseList && ep != nullptr)
         {
@@ -253,6 +254,7 @@ public:
         CPersistentInfo* info = m_availkeeper->get(ep, proto);
         if (info)
         {
+            PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: Obtained persistent socket %p from availKeeper", info->sock);
             Linked<ISocket> sock = info->sock;
             info->inUse = true;
             info->timeUsed = usTick()/1000;
