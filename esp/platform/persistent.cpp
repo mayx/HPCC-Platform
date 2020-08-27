@@ -84,7 +84,7 @@ public:
         if (sset)
         {
             //The first available socket will suffice
-            for (const auto& s : *sset)
+            for (const auto s : *sset)
             {
                 sset->erase(s);
                 return s;
