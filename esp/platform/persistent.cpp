@@ -84,10 +84,12 @@ public:
         if (sset)
         {
             //The first available socket will suffice
-            for (const auto s : *sset)
+            auto iter = sset->begin();
+            if (iter != sset->end())
             {
-                sset->erase(s);
-                return s;
+                CPersistentInfo* info = *iter;
+                sset->erase(iter);
+                return info;
             }
         }
         return nullptr;
