@@ -191,9 +191,9 @@ public:
         }
         m_selectHandler->add(sock, SELECTMODE_READ, this);
         Owned<CPersistentInfo> info = new CPersistentInfo(false, usTick()/1000, 0, ep, proto, sock);
-        PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding info %p to availKeeper", info.get());
         m_infomap.setValue(sock, info.getLink());
-        m_availkeeper->add(info);
+        PERSILOG(PersistentLogLevel::PLogMax, "PERSISTENT: adding info %p to availKeeper", info.get());
+        m_availkeeper->add(info.get());
     }
 
     virtual void remove(ISocket* sock) override
