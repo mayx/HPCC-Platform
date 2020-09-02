@@ -509,30 +509,26 @@ public:
     }
 } *blacklist;
 
-class PersistentHandlerWrapper
-{
-public:
-    PersistentHandlerWrapper(IPersistentHandler* handler) : persistentHandler(handler) { }
-    Owned<IPersistentHandler> persistentHandler;
-};
+static IPersistentHandler* persistentHandler = nullptr;
+static CriticalSection persistentCrit;
+static bool persistentInitDone = false;
 
-static Singleton<PersistentHandlerWrapper> persistentHandlerSingleton;
-
-PersistentHandlerWrapper & queryPersistentHandler()
+void initPersistentHandler()
 {
-        return *persistentHandlerSingleton.query([] {
+    CriticalBlock block(persistentCrit);
+    if (!persistentInitDone)
+    {
 #ifndef _CONTAINERIZED
-            const IProperties &conf = queryEnvironmentConf();
-            int maxPersistentRequests = conf.getPropInt("maxPersistentRequests", DEFAULT_MAX_PERSISTENT_REQUESTS);
+        const IProperties &conf = queryEnvironmentConf();
+        int maxPersistentRequests = conf.getPropInt("maxPersistentRequests", DEFAULT_MAX_PERSISTENT_REQUESTS);
 #else
-            IPropertyTree& conf = queryComponentConfig();
-            int maxPersistentRequests = conf.getPropInt("@maxPersistentRequests", DEFAULT_MAX_PERSISTENT_REQUESTS);
+        IPropertyTree& conf = queryComponentConfig();
+        int maxPersistentRequests = conf.getPropInt("@maxPersistentRequests", DEFAULT_MAX_PERSISTENT_REQUESTS);
 #endif
-            if (maxPersistentRequests == 0)
-                return new PersistentHandlerWrapper(nullptr);
-            else
-                return new PersistentHandlerWrapper(createPersistentHandler(nullptr, DEFAULT_MAX_PERSISTENT_IDLE_TIME, maxPersistentRequests, PersistentLogLevel::PLogMin, true));
-        });
+        if (maxPersistentRequests != 0)
+            persistentHandler = createPersistentHandler(nullptr, DEFAULT_MAX_PERSISTENT_IDLE_TIME, maxPersistentRequests, PersistentLogLevel::PLogMin, true);
+        persistentInitDone = true;
+    }
 }
 
 MODULE_INIT(INIT_PRIORITY_STANDARD)
@@ -547,12 +543,10 @@ MODULE_EXIT()
     blacklist->stop();
     delete blacklist;
 
-    PersistentHandlerWrapper* pwrapper = persistentHandlerSingleton.queryExisting();
-    if (pwrapper)
+    if (persistentHandler)
     {
-        if (pwrapper->persistentHandler)
-            pwrapper->persistentHandler->stop(true);
-        delete pwrapper;
+        persistentHandler->stop(true);
+        delete persistentHandler;
     }
 }
 
@@ -1539,7 +1533,6 @@ private:
     PTreeReaderOptions options;
     unsigned remainingMS;
     CCycleTimer mTimer;
-    IPersistentHandler* persistentHandler = queryPersistentHandler().persistentHandler;
 
     inline void checkRoxieAbortMonitor(IRoxieAbortMonitor * roxieAbortMonitor)
     {
@@ -2329,5 +2322,7 @@ public:
 
 IWSCAsyncFor * createWSCAsyncFor(CWSCHelper * _master, IXmlWriterExt &_xmlWriter, ConstPointerArray &_inputRows, PTreeReaderOptions _options)
 {
+    if (!persistentInitDone)
+        initPersistentHandler();
     return new CWSCAsyncFor(_master, _xmlWriter, _inputRows, _options);
 }

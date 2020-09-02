@@ -100,7 +100,7 @@ protected:
     virtual int processHeaders(IMultiException *me);
 
 protected:
-    virtual inline bool checkPersistentEligible();
+    virtual bool checkPersistentEligible();
 
 public:
     IMPLEMENT_IINTERFACE;
@@ -332,11 +332,9 @@ private:
     virtual void parseCookieHeader(char* cookiestr);
 
 protected:
-    inline bool checkPersistentEligible();
+    virtual bool checkPersistentEligible() override;
 
 public:
-    
-
     CHttpRequest(ISocket& socket);
     virtual ~CHttpRequest();
     
@@ -385,7 +383,7 @@ private:
     virtual void parseOneCookie(char* cookiestr);
 
 protected:
-    inline bool checkPersistentEligible();
+    virtual bool checkPersistentEligible() override;
 
 public:
     CHttpResponse(ISocket& socket);

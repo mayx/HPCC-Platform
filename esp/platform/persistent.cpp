@@ -47,33 +47,35 @@ protected:
     unsigned useCount;
     std::unique_ptr<SocketEndpoint> ep;
     StringBuffer epstr;
+    StringBuffer keystr;
     PersistentProtocol proto;
-    ISocket* sock;
+    Linked<ISocket> sock;
 };
 
-using SocketSet = std::unordered_set<CPersistentInfo*>;
-using EpSocketSetMap = MapStringTo<SocketSet*, SocketSet*>;
+struct LinkedPersistentInfoHash
+{
+    size_t operator()(const Linked<CPersistentInfo>& linkedinfo) const
+    {
+        return std::hash<CPersistentInfo*>()(linkedinfo);
+    }
+};
 
-class CAvailKeeper : implements IInterface, public CInterface
+using SocketSet = std::unordered_set<Linked<CPersistentInfo>, LinkedPersistentInfoHash>;
+using EpSocketSetMap = MapStringTo<OwnedPtr<SocketSet>, SocketSet*>;
+
+class CAvailKeeper
 {
 private:
     SocketSet m_avail;
     EpSocketSetMap m_avail4ep;
 public:
-    IMPLEMENT_IINTERFACE;
-    CAvailKeeper() { }
-    virtual ~CAvailKeeper()
-    {
-        for (auto& ss : m_avail4ep)
-            delete ss.getValue();
-    }
     void add(CPersistentInfo* sockinfo)
     {
-        findSet(sockinfo->ep.get(), sockinfo->proto, true)->insert(sockinfo);
+        findSet(sockinfo, true)->insert(sockinfo);
     }
     void remove(CPersistentInfo* sockinfo)
     {
-        SocketSet* sset = findSet(sockinfo->ep.get(), sockinfo->proto);
+        SocketSet* sset = findSet(sockinfo);
         if (sset)
             sset->erase(sockinfo);
     }
@@ -86,9 +88,9 @@ public:
             auto iter = sset->begin();
             if (iter != sset->end())
             {
-                CPersistentInfo* info = *iter;
+                Linked<CPersistentInfo> info = *iter;
                 sset->erase(iter);
-                return info;
+                return info.getClear();
             }
         }
         return nullptr;
@@ -109,20 +111,31 @@ private:
         }
         return keystr;
     }
-
+    SocketSet* findSet(CPersistentInfo* info, bool create = false)
+    {
+        if (!info->ep.get())
+            return &m_avail;
+        if (info->keystr.length() == 0)
+            calcKey(*info->ep.get(), info->proto, info->keystr);
+        return findSet(info->keystr.str(), create);
+    }
     SocketSet* findSet(SocketEndpoint* ep, PersistentProtocol proto, bool create = false)
     {
         if (!ep)
             return &m_avail;
         StringBuffer keystr;
         calcKey(*ep, proto, keystr);
-        SocketSet** ptrptr = m_avail4ep.getValue(keystr.str());
+        return findSet(keystr.str(), create);
+    }
+    SocketSet* findSet(const char* key, bool create = false)
+    {
+        auto ptrptr = m_avail4ep.getValue(key);
         if (ptrptr)
             return *ptrptr;
         else if (create)
         {
             SocketSet* sset = new SocketSet();
-            m_avail4ep.setValue(keystr.str(), sset);
+            m_avail4ep.setValue(key, sset);
             return sset;
         }
         return nullptr;
@@ -149,7 +162,7 @@ private:
     Semaphore m_waitsem;
     bool m_stop = false;
     SockInfoMap m_infomap;
-    Owned<CAvailKeeper> m_availkeeper;
+    CAvailKeeper m_availkeeper;
     CriticalSection m_critsect;
     PersistentLogLevel m_loglevel = PersistentLogLevel::PLogNormal;
     static int CurID;
@@ -164,7 +177,6 @@ public:
     {
         m_id = ++CurID;
         m_selectHandler.setown(createSocketSelectHandler());
-        m_availkeeper.setown(new CAvailKeeper());
     }
 
     virtual ~CPersistentHandler()
@@ -192,7 +204,7 @@ public:
         m_selectHandler->add(sock, SELECTMODE_READ, this);
         Owned<CPersistentInfo> info = new CPersistentInfo(false, usTick()/1000, 0, ep, proto, sock);
         m_infomap.setValue(sock, info.getLink());
-        m_availkeeper->add(info);
+        m_availkeeper.add(info);
     }
 
     virtual void remove(ISocket* sock) override
@@ -209,7 +221,7 @@ public:
         if (info)
         {
             if (!info->inUse)
-                m_availkeeper->remove(info);
+                m_availkeeper.remove(info);
             m_infomap.remove(sock);
         }
         if (!removedFromSelectHandler)
@@ -235,7 +247,7 @@ public:
                 info->inUse = false;
                 info->timeUsed = usTick()/1000;
                 m_selectHandler->add(sock, SELECTMODE_READ, this);
-                m_availkeeper->add(info);
+                m_availkeeper.add(info);
             }
             else
             {
@@ -251,7 +263,7 @@ public:
     virtual ISocket* getAvailable(SocketEndpoint* ep = nullptr, bool* pShouldClose = nullptr, PersistentProtocol proto =  PersistentProtocol::ProtoTCP) override
     {
         CriticalBlock block(m_critsect);
-        CPersistentInfo* info = m_availkeeper->get(ep, proto);
+        Owned<CPersistentInfo> info = m_availkeeper.get(ep, proto);
         if (info)
         {
             Linked<ISocket> sock = info->sock;
@@ -318,7 +330,7 @@ public:
                     info = *val;
                 if (info)
                 {
-                    m_availkeeper->remove(info);
+                    m_availkeeper.remove(info);
                     info->inUse = true;
                     info->timeUsed = usTick()/1000;
                     info->useCount++;
