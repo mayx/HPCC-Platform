@@ -29,6 +29,21 @@
 
 #define PERSILOG(loglevel, ...) if(static_cast<int>(loglevel) <= static_cast<int>(m_loglevel)) DBGLOG(__VA_ARGS__)
 
+static inline StringBuffer& addKeySuffix(PersistentProtocol proto, StringBuffer& keystr)
+{
+    switch (proto)
+    {
+        case PersistentProtocol::ProtoTCP:
+            break;
+        case PersistentProtocol::ProtoTLS:
+            keystr.append('~');
+            break;
+        default:
+            throw makeStringException(-1, "New suffix should be defined");
+    }
+    return keystr;
+}
+
 class CPersistentInfo : implements IInterface, public CInterface
 {
     friend class CPersistentHandler;
@@ -39,7 +54,11 @@ public:
         : inUse(_inUse), timeUsed(_timeUsed), useCount(_useCount), ep(_ep?(new SocketEndpoint(*_ep)):nullptr), proto(_proto), sock(_sock)
     {
         if(_ep)
+        {
             _ep->getUrlStr(epstr);
+            keystr.set(epstr);
+            addKeySuffix(proto, keystr);
+        }
     }
 protected:
     bool inUse;
@@ -52,15 +71,15 @@ protected:
     Linked<ISocket> sock;
 };
 
-struct LinkedPersistentInfoHash
+struct OwnedPersistentInfoHash
 {
-    size_t operator()(const Linked<CPersistentInfo>& linkedinfo) const
+    size_t operator()(const Owned<CPersistentInfo>& ownedinfo) const
     {
-        return std::hash<CPersistentInfo*>()(linkedinfo);
+        return std::hash<CPersistentInfo*>()(ownedinfo);
     }
 };
 
-using SocketSet = std::unordered_set<Linked<CPersistentInfo>, LinkedPersistentInfoHash>;
+using SocketSet = std::unordered_set<Owned<CPersistentInfo>, OwnedPersistentInfoHash>;
 using EpSocketSetMap = MapStringTo<OwnedPtr<SocketSet>, SocketSet*>;
 
 class CAvailKeeper
@@ -71,13 +90,18 @@ private:
 public:
     void add(CPersistentInfo* sockinfo)
     {
-        findSet(sockinfo, true)->insert(sockinfo);
+        findSet(sockinfo, true)->insert(LINK(sockinfo));
     }
     void remove(CPersistentInfo* sockinfo)
     {
         SocketSet* sset = findSet(sockinfo);
         if (sset)
+        {
+            Linked<CPersistentInfo> savedinfo = sockinfo;
             sset->erase(sockinfo);
+            if (sset->empty() && savedinfo->keystr.length() > 0)
+                m_avail4ep.remove(savedinfo->keystr.str());
+        }
     }
     CPersistentInfo* get(SocketEndpoint* ep, PersistentProtocol proto)
     {
@@ -86,12 +110,11 @@ public:
         {
             //The first available socket will suffice
             auto iter = sset->begin();
-            if (iter != sset->end())
-            {
-                Linked<CPersistentInfo> info = *iter;
-                sset->erase(iter);
-                return info.getClear();
-            }
+            Linked<CPersistentInfo> info = *iter;
+            sset->erase(iter);
+            if (sset->empty() && info->keystr.length() > 0)
+                m_avail4ep.remove(info->keystr.str());
+            return info.getClear();
         }
         return nullptr;
     }
@@ -99,24 +122,12 @@ private:
     inline StringBuffer& calcKey(SocketEndpoint& ep, PersistentProtocol proto, StringBuffer& keystr)
     {
         ep.getUrlStr(keystr);
-        switch (proto)
-        {
-            case PersistentProtocol::ProtoTCP:
-                break;
-            case PersistentProtocol::ProtoTLS:
-                keystr.append('~');
-                break;
-            default:
-                throw makeStringException(-1, "New suffix should be defined");
-        }
-        return keystr;
+        return addKeySuffix(proto, keystr);
     }
     SocketSet* findSet(CPersistentInfo* info, bool create = false)
     {
         if (!info->ep.get())
             return &m_avail;
-        if (info->keystr.length() == 0)
-            calcKey(*info->ep.get(), info->proto, info->keystr);
         return findSet(info->keystr.str(), create);
     }
     SocketSet* findSet(SocketEndpoint* ep, PersistentProtocol proto, bool create = false)

@@ -511,7 +511,7 @@ public:
 
 static IPersistentHandler* persistentHandler = nullptr;
 static CriticalSection persistentCrit;
-static bool persistentInitDone = false;
+static std::atomic<bool> persistentInitDone{false};
 
 void initPersistentHandler()
 {
@@ -546,7 +546,7 @@ MODULE_EXIT()
     if (persistentHandler)
     {
         persistentHandler->stop(true);
-        delete persistentHandler;
+        ::Release(persistentHandler);
     }
 }
 

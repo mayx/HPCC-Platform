@@ -68,8 +68,8 @@ set (    SRCS
          thorrparse.ipp
          thorsort.cpp
          thorsort.hpp
-         ../../esp/platform/persistent.cpp
-         ../../esp/platform/persistent.hpp
+         ${HPCC_SOURCE_DIR}/esp/platform/persistent.cpp
+         ${HPCC_SOURCE_DIR}/esp/platform/persistent.hpp
          
          roxiedebug.hpp
          roxiedebug.ipp
