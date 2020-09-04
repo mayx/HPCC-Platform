@@ -402,9 +402,48 @@ bool isNumber(const char* str)
 
 typedef MapStringTo<int> MapStrToInt;
 
+#include <unordered_set>
+class CPersistentInfo : public CInterface, implements IInterface {
+public:
+    IMPLEMENT_IINTERFACE;
+
+    CPersistentInfo() {
+        printf("CPersistentinfo()\n");
+    }
+
+    ~CPersistentInfo() {
+        printf("~CPersistentInfo()\n");
+    }
+};
+
+struct OwnedPersistentInfoHash
+{
+    size_t operator()(const Owned<CPersistentInfo>& ownedinfo) const
+    {
+        return std::hash<CPersistentInfo*>()(ownedinfo);
+    }
+};
+
+using SocketSet = std::unordered_set<Owned<CPersistentInfo>, OwnedPersistentInfoHash>;
+
+
 int main(int argc, char** argv)
 {
     InitModuleObjects();
+
+    SocketSet sset;
+    sset.insert(new CPersistentInfo());
+    printf("inserted\n");
+    auto iter = sset.begin();
+    Linked<CPersistentInfo> info = *iter;
+    printf("got first\n");
+    sset.erase(info.getLink());
+    printf("erased\n");
+    sset.insert(LINK(info.get()));
+    printf("re-inserted\n");
+
+    if (true)
+        return 0;
 
     Owned<IProperties> globals = createProperties(true);
 
