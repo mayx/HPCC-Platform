@@ -65,8 +65,15 @@ if [ "${CAUrl}" == "" ]; then
         CAUrl=${CAURL}
     fi
 fi
+if [ "${CAType}" == "" ]; then
+    CAType=${catype}
+    if [ "${CAType}" == "" ]; then
+        CAType=${CATYPE}
+    fi
+fi
 CAUser=""
 CAPass=""
+#TODO 1. Error handling for cfssl
 if [ "${CAUrl}" == "" ] && ([ ! -e ${certPath}/cacert-key.pem ] || [ ! -e ${certPath}/cacert.pem ]); then
     rm -rf ${certPath}/cacert-key.pem ${certPath}/cacert.pem
     subj="${subjbase}/CN=ca.${domainname}"
@@ -93,9 +100,17 @@ for i in "" ${compArray[@]} ; do
     fi
 
     if [ "${regenerate}" = "1" ] || [ ! -e ${certPath}/${compName}/key.pem ] || [ ! -e ${certPath}/${compName}/certificate.pem ] || [ ! -e ${certPath}/${compName}/public.key.pem ]; then
-        if [ "${CAUrl}" != "" ] && [ "${CAUser}" == "" ]; then
-            read -p "CA Username: " CAUser
-            read -s -p "CA Password: " CAPass
+        if [ "${CAUrl}" != "" ] && [ "${CAType}" != "" ] && [ "${CAType}" != "vault" ] && [ "${CAType}" != "cfssl" ] ; then
+            printf "Unsupported CA type ${CAType}\n"
+            exit 1
+        fi
+        if [ "${CAUrl}" != "" ] && [ "${CAPass}" == "" ]; then
+            if [ "${CAType}" == "vault" ]; then
+                read -s -p "CA Token: " CAPass
+            else
+                read -p "CA Username: " CAUser
+                read -s -p "CA Password: " CAPass
+            fi
             printf "\n"
         fi
         if [ "${compName}" != "" ]; then
@@ -103,31 +118,87 @@ for i in "" ${compArray[@]} ; do
         else
              cn="hpcc.${domainname}"
         fi
-        compSubject="${subjbase}/CN=${cn}"
-        printf "Generating key for ${cn}\n"
-        rm -rf ${certPath}/${compName}/key.pem ${certPath}/${compName}/certificate.pem
-        openssl req -nodes -newkey rsa:2048 -keyout ${certPath}/${compName}/key.pem -out ${certPath}/${compName}/my.csr -subj "${compSubject}"
-        chmod 400 ${certPath}/${compName}/key.pem
-        openssl rsa -in ${certPath}/${compName}/key.pem -pubout -out ${certPath}/${compName}/public.key.pem
-        printf "PKI keys installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
-        log_success_msg
+        if [ "${CAType}" != "vault" ]; then
+            compSubject="${subjbase}/CN=${cn}"
+            printf "Generating key for ${cn}\n"
+            rm -rf ${certPath}/${compName}/key.pem ${certPath}/${compName}/certificate.pem
+            openssl req -nodes -newkey rsa:2048 -keyout ${certPath}/${compName}/key.pem -out ${certPath}/${compName}/my.csr -subj "${compSubject}"
+            chmod 400 ${certPath}/${compName}/key.pem
+            openssl rsa -in ${certPath}/${compName}/key.pem -pubout -out ${certPath}/${compName}/public.key.pem
+            printf "PKI keys installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
+            log_success_msg
+        fi
         if [ "${CAUrl}" != "" ]; then
-            csrtxt=$(sed -e ':a' -e 'N;$!ba' -e 's/\n/\\n/g' ${certPath}/${compName}/my.csr)
-            now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            oneyear=$(date -u --date '+ 1 year' +"%Y-%m-%dT%H:%M:%SZ")
-            reqtxt="{\"hosts\":[\"${cn}\"],\"certificate_request\":\"${csrtxt}\",\"profile\":\"${CAUser}\",\"crl_override\":\"\",\"label\":\"default\",\"NotBefore\":\"${now}\",\"NotAfter\":\"${oneyear}\",\"ReturnPrecert\":false,\"metadata\":null}"
-            csrtoken=$(echo ${reqtxt} | openssl sha256 -hmac ${CAPass} -binary | openssl base64)
-            reqbase64=$(echo ${reqtxt} | openssl base64 -e -A)
-            csrreq="{\"timestamp\":$(date +%s),\"token\":\"${csrtoken}\",\"request\":\"${reqbase64}\"}"
-            echo ${csrreq} | curl -s -H "Content-Type: application/json" -X POST --data-binary @- ${CAUrl}/api/v1/cfssl/authsign > ${certPath}/${compName}/myresp.json
-            jq -r '.result.certificate' ${certPath}/${compName}/myresp.json > ${certPath}/${compName}/certificate.pem
-            rm -f ${certPath}/${compName}/my.csr ${certPath}/${compName}/myresp.json
-            if [ ! -e ${certPath}/${compName}/certificate.pem ]; then
-                printf "Failed to generate certificate from remote CA for component %-15s\n" "${compNamePrint}"
-                exit 1
+            if [ "${CAType}" == "vault" ]; then
+                reqtxt="{\"common_name\":\"${cn}\",\"ou\":\"Community\",\"organization\":\"HPCCSystems\",\"Locality\":\"Local\",\"province\":\"NA\",\"country\":\"US\"}"
+                curl -s -X PUT -H "X-Vault-Token: ${CAPass}" -d "${reqtxt}" ${CAUrl}/v1/pki/issue/hpcc > ${certPath}/${compName}/myresp.json
+                if [ ! -s ${certPath}/${compName}/myresp.json ]; then
+                    printf "Failed to get response from vault CA server\n"
+                    exit 1
+                fi
+                if jq -e 'has("errors")' ${certPath}/${compName}/myresp.json > /dev/null; then
+                    printf "Error happened trying to generate certificate from Vault CA: %s\n" "`jq -r '.errors' ${certPath}/${compName}/myresp.json`"
+                    exit 1
+                fi
+                jq -r '.data.certificate' ${certPath}/${compName}/myresp.json > ${certPath}/${compName}/certificate.pem
+                jq -r '.data.private_key' ${certPath}/${compName}/myresp.json > ${certPath}/${compName}/key.pem
+                if [ "${compName}" == "" ]; then
+                    jq -r '.data.issuing_ca' ${certPath}/${compName}/myresp.json > ${certPath}/ca.pem
+                fi
+                openssl rsa -in ${certPath}/${compName}/key.pem -pubout -out ${certPath}/${compName}/public.key.pem
+                #rm -f ${certPath}/${compName}/myresp.json
+                if [ ! -e ${certPath}/${compName}/certificate.pem ]; then
+                    printf "Failed to generate certificate from Vault CA for component %-15s\n" "${compNamePrint}"
+                    exit 1
+                else
+                    printf "Certificate from Vault CA installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
+                    log_success_msg
+                fi
+                if [ ! -e ${certPath}/${compName}/key.pem ]; then
+                    printf "Failed to generate private key from Vault CA for component %-15s\n" "${compNamePrint}"
+                    exit 1
+                else
+                    printf "Private key from Vault CA installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
+                    log_success_msg
+                fi
+                if [ ! -e ${certPath}/${compName}/public.key.pem ]; then
+                    printf "Failed to generate public key from Vault CA for component %-15s\n" "${compNamePrint}"
+                    exit 1
+                else
+                    printf "Public key from Vault CA installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
+                    log_success_msg
+                fi
             else
-                printf "Certificate from remote CA installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
-                log_success_msg
+                if [ "${compName}" == "" ]; then
+                    curl -s -H "Content-Type: application/json" -X POST -d "{\"label\":\"\",\"profile\":\"\"}" ${CAUrl}/api/v1/cfssl/info > ${certPath}/inforesp.json
+                    jq -r '.result.certificate' ${certPath}/inforesp.json > ${certPath}/ca.pem
+                    #rm -f ${certPath}/inforesp.json
+                fi
+                csrtxt=$(sed -e ':a' -e 'N;$!ba' -e 's/\n/\\n/g' ${certPath}/${compName}/my.csr)
+                now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                oneyear=$(date -u --date '+ 1 year' +"%Y-%m-%dT%H:%M:%SZ")
+                reqtxt="{\"hosts\":[\"${cn}\"],\"certificate_request\":\"${csrtxt}\",\"profile\":\"${CAUser}\",\"crl_override\":\"\",\"label\":\"default\",\"NotBefore\":\"${now}\",\"NotAfter\":\"${oneyear}\",\"ReturnPrecert\":false,\"metadata\":null}"
+                csrtoken=$(echo ${reqtxt} | openssl sha256 -hmac ${CAPass} -binary | openssl base64)
+                reqbase64=$(echo ${reqtxt} | openssl base64 -e -A)
+                csrreq="{\"timestamp\":$(date +%s),\"token\":\"${csrtoken}\",\"request\":\"${reqbase64}\"}"
+                echo ${csrreq} | curl -s -H "Content-Type: application/json" -X POST --data-binary @- ${CAUrl}/api/v1/cfssl/authsign > ${certPath}/${compName}/myresp.json
+                if [ ! -s ${certPath}/${compName}/myresp.json ]; then
+                    printf "Failed to get response from remote CA server\n"
+                    exit 1
+                fi
+                if jq -e ".success!=true" ${certPath}/${compName}/myresp.json > /dev/null; then
+                    printf "Error happened trying to generate certificate from remote CA: %s\n" "`jq -r '.errors' ${certPath}/${compName}/myresp.json`"
+                    exit 1
+                fi
+                jq -r '.result.certificate' ${certPath}/${compName}/myresp.json > ${certPath}/${compName}/certificate.pem
+                #rm -f ${certPath}/${compName}/my.csr ${certPath}/${compName}/myresp.json
+                if [ ! -e ${certPath}/${compName}/certificate.pem ]; then
+                    printf "Failed to generate certificate from remote CA for component %-15s\n" "${compNamePrint}"
+                    exit 1
+                else
+                    printf "Certificate from remote CA installed for user %s component %-15s ..." "${USER_NAME}" "${compNamePrint}"
+                    log_success_msg
+                fi
             fi
         else
             openssl x509 -req -days 365 -in ${certPath}/${compName}/my.csr -CA ${certPath}/cacert.pem -CAkey ${certPath}/cacert-key.pem -sha256 -CAcreateserial -CAserial ca.seq -out ${certPath}/${compName}/certificate.pem
